@@ -5,13 +5,13 @@ import { getFirestore } from "firebase/firestore";
 // import { getAnalytics } from "firebase/analytics";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAgtJrmsFWG1C7m9S55HyT1laICEzuUS2g",
-  authDomain: "pickle-3651a.firebaseapp.com",
-  projectId: "pickle-3651a",
-  storageBucket: "pickle-3651a.firebasestorage.app",
-  messagingSenderId: "904706892885",
-  appId: "1:904706892885:web:0e42b3dda796674ead20dc",
-  measurementId: "G-SQ0WM6S28T"
+  apiKey: "AIzaSyA8-g3sUmtRL4qwWCc1_qUwBB6jWh68VH4",
+  authDomain: "getseerai.firebaseapp.com",
+  projectId: "getseerai",
+  storageBucket: "getseerai.firebasestorage.app",
+  messagingSenderId: "992558788759",
+  appId: "1:992558788759:web:3c8927306728856aadf9d2",
+  measurementId: "G-9HZJLFZEM6"
 };
 
 // Initialize Firebase
@@ -20,4 +20,4 @@ const auth = getAuth(app);
 const firestore = getFirestore(app);
 // const analytics = getAnalytics(app);
 
-export { app, auth, firestore }; 
+export { app, auth, firestore };
