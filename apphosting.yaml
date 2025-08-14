@@ -1,0 +1,19 @@
+# Firebase App Hosting configuration
+runConfig:
+  # Use Node.js 18 or 20 for better compatibility
+  runtime: nodejs20
+
+# Build configuration
+buildConfig:
+  # Install dependencies for both root and web subdirectory
+  commands:
+    - npm ci --omit=optional
+    - cd pickleglass_web && npm ci
+    - npm run build:renderer
+    - npm run build:web
+
+# Serve the static files from the Next.js output directory
+serveConfig:
+  staticAssets:
+    - source: pickleglass_web/out
+      destination: /
