@@ -5,8 +5,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useState, createElement, useEffect, useMemo, useCallback, memo } from 'react';
 import { Search, Activity, HelpCircle, Download, ChevronDown, User, Shield, Database, CreditCard, LogOut, LucideIcon } from 'lucide-react';
-import { logout, UserProfile, checkApiKeyStatus } from '@/utils/api';
+import { logout, UserProfile } from '@/utils/api';
 import { useAuth } from '@/utils/auth';
+import { getBrandConfig } from '@/config/brand';
+import { initiateDownload, getPlatformDisplayName, detectUserPlatform } from '@/config/download';
 
 const ANIMATION_DURATION = {
     SIDEBAR: 500,
@@ -150,19 +152,10 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
     const router = useRouter();
     const [isSettingsExpanded, setIsSettingsExpanded] = useState(pathname.startsWith('/settings'));
     const { user: userInfo, isLoading: authLoading } = useAuth();
-    const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+    const brandConfig = getBrandConfig();
 
     const { isAnimating, getTextAnimationStyle, getSubmenuAnimationStyle, sidebarContainerStyle, getTextContainerStyle, getUniformTextStyle } =
         useAnimationStyles(isCollapsed);
-
-    useEffect(() => {
-        checkApiKeyStatus()
-            .then(status => setHasApiKey(status.hasApiKey))
-            .catch(err => {
-                console.error('Failed to check API key status:', err);
-                setHasApiKey(null); // Set to null on error
-            });
-    }, []);
 
     useEffect(() => {
         if (pathname.startsWith('/settings')) {
@@ -214,29 +207,6 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
         []
     );
 
-    const bottomItems = useMemo(
-        () => [
-            {
-                href: 'https://discord.gg/UCZH5B5Hpd',
-                icon: '/linkout.svg',
-                text: 'Join Discord',
-                ariaLabel: 'Help Center (new window)',
-            },
-            {
-                href: 'https://www.dropbox.com/scl/fi/esk4h8z45sryvbremy57v/Pickle_latest.dmg?rlkey=92y535bz6p6gov6vd17x6q53b&st=9kl0annj&dl=1',
-                icon: '/download.svg',
-                text: 'Download Pickle Camera',
-                ariaLabel: 'Download Pickle Camera (new window)',
-            },
-            {
-                href: 'hhttps://www.dropbox.com/scl/fi/znid09apxiwtwvxer6oc9/Glass_latest.dmg?rlkey=gwvvyb3bizkl25frhs4k1zwds&st=37q31b4w&dl=1',
-                icon: '/download.svg',
-                text: 'Download Pickle Glass',
-                ariaLabel: 'Download Pickle Glass (new window)',
-            },
-        ],
-        []
-    );
 
     const toggleSidebar = useCallback(() => {
         onToggle(!isCollapsed);
@@ -480,8 +450,8 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
         >
             <header className={`group relative h-6 flex shrink-0 items-center justify-between`}>
                 {isCollapsed ? (
-                    <Link href="https://pickle.com" target="_blank" rel="noopener noreferrer" className="flex items-center">
-                        <Image src="/symbol.svg" alt="Logo" width={20} height={20} className="mx-3 shrink-0" />
+                    <Link href={brandConfig.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center">
+                        <Image src={brandConfig.logoSymbol} alt={`${brandConfig.displayName} Logo`} width={20} height={20} className="mx-3 shrink-0" />
                         <button
                             onClick={toggleSidebar}
                             onKeyDown={e => handleKeyDown(e, toggleSidebar)}
@@ -495,10 +465,10 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                     </Link>
                 ) : (
                     <>
-                        <Link href="https://pickle.com" target="_blank" rel="noopener noreferrer" className="flex items-center">
+                        <Link href={brandConfig.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center">
                             <Image
-                                src={isCollapsed ? '/symbol.svg' : '/word.svg'}
-                                alt="pickleglass Logo"
+                                src={isCollapsed ? brandConfig.logoSymbol : brandConfig.logoWord}
+                                alt={`${brandConfig.displayName} Logo`}
                                 width={50}
                                 height={14}
                                 className="mx-3 shrink-0"
@@ -540,46 +510,29 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                     </div>
                 </button>
 
-                {!isCollapsed && hasApiKey !== null && (
-                    <div className="px-2.5 py-2 text-center">
-                        <span className={`text-xs px-2 py-1 rounded-full ${hasApiKey ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
-                            {hasApiKey ? 'Local running' : 'Pickle Free System'}
-                        </span>
-                    </div>
-                )}
-
                 <div className="mt-auto space-y-[0px]" role="navigation" aria-label="Additional links">
-                    {bottomItems.map((item, index) => (
-                        <Link
-                            key={item.text}
-                            href={item.href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={`
-                group flex items-center rounded-[6px] px-[12px] py-[8px] text-[13px] text-[#282828]
-                hover:text-[#282828] hover:bg-[#f7f7f7] ${isCollapsed ? '' : 'gap-x-[10px]'}
-                transition-colors duration-${ANIMATION_DURATION.COLOR_TRANSITION} ease-out 
-                focus:outline-none
-              `}
-                            title={isCollapsed ? item.text : undefined}
-                            aria-label={item.ariaLabel}
-                            style={{ willChange: 'background-color, color' }}
-                        >
-                            <div className=" overflow-hidden">
-                                <span className="" style={getUniformTextStyle()}>
-                                    {item.text}
-                                </span>
-                            </div>
-                            <div className="shrink-0 flex items-center justify-center w-4 h-4">
-                                <IconComponent
-                                    icon={item.icon}
-                                    isLucide={false}
-                                    alt={`${item.text} icon`}
-                                    className={`h-[16px] w-[16px] transition-transform duration-${ANIMATION_DURATION.ICON_HOVER}`}
-                                />
-                            </div>
-                        </Link>
-                    ))}
+                    <button
+                        onClick={() => initiateDownload()}
+                        onKeyDown={e => handleKeyDown(e, () => initiateDownload())}
+                        className={`
+                            group flex items-center rounded-[6px] px-[12px] py-[8px] text-[13px] text-[#282828] w-full
+                            hover:text-[#282828] hover:bg-[#f7f7f7] ${isCollapsed ? '' : 'gap-x-[10px]'}
+                            transition-colors duration-${ANIMATION_DURATION.COLOR_TRANSITION} ease-out 
+                            focus:outline-none
+                        `}
+                        title={isCollapsed ? `Download ${brandConfig.displayName} for ${getPlatformDisplayName()}` : undefined}
+                        aria-label={`Download ${brandConfig.displayName} for ${getPlatformDisplayName()}`}
+                        style={{ willChange: 'background-color, color' }}
+                    >
+                        <div className="overflow-hidden">
+                            <span className="" style={getUniformTextStyle()}>
+                                Download {brandConfig.displayName} for {getPlatformDisplayName()}
+                            </span>
+                        </div>
+                        <div className="shrink-0 flex items-center justify-center w-4 h-4">
+                            <Download className={`h-[16px] w-[16px] transition-transform duration-${ANIMATION_DURATION.ICON_HOVER}`} />
+                        </div>
+                    </button>
                 </div>
 
                 <div className="mt-[0px] flex items-center w-full h-[1px] px-[4px] mt-[8px] mb-[8px]">

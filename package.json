@@ -1,8 +1,8 @@
 {
-    "name": "pickle-glass",
-    "productName": "Glass",
+    "name": "reetreev-desktop",
+    "productName": "Reetreev",
     "version": "0.2.4",
-    "description": "Cl*ely for Free",
+    "description": "Personalized AI Assistant for various contexts",
     "main": "src/index.js",
     "scripts": {
         "setup": "npm install && cd pickleglass_web && npm install && npm run build && cd .. && npm start",
@@ -25,15 +25,15 @@
         "watch:renderer": "node build.js --watch"
     },
     "keywords": [
-        "glass",
-        "pickle glass",
+        "reetreev",
         "ai assistant",
         "real-time",
         "live summary",
-        "contextual ai"
+        "contextual ai",
+        "personalized ai"
     ],
     "author": {
-        "name": "Pickle Team"
+        "name": "Reetreev Team"
     },
     "license": "GPL-3.0",
     "dependencies": {

@@ -1,23 +1,23 @@
 # electron-builder.yml
 
 # The unique application ID
-appId: com.pickle.glass
+appId: com.reetreev.desktop
 
 # The user-facing application name
-productName: Glass
+productName: Reetreev
 
 # Publish configuration for GitHub releases
 publish:
     provider: github
-    owner: pickle-com
-    repo: glass
+    owner: your-org
+    repo: reetreev-desktop
     releaseType: draft
 
 # Protocols configuration for deep linking
 protocols:
-    name: PickleGlass Protocol
+    name: Reetreev Protocol
     schemes: 
-        - pickleglass
+        - reetreev
 
 # List of files to be included in the app package
 files:
@@ -39,7 +39,7 @@ asarUnpack:
 
 # Windows configuration
 win:
-    icon: src/ui/assets/logo.ico
+    icon: src/ui/assets/reetreev-logo.ico
     target:
         - target: nsis
           arch: x64
@@ -47,10 +47,10 @@ win:
           arch: x64
     requestedExecutionLevel: asInvoker
     signAndEditExecutable: true
-    cscLink: build\certs\glass-dev.pfx
+    cscLink: build\certs\reetreev-dev.pfx
     cscKeyPassword: "${env.CSC_KEY_PASSWORD}"
     signtoolOptions:
-      certificateSubjectName: "Glass Dev Code Signing"
+      certificateSubjectName: "Reetreev Dev Code Signing"
 
 # NSIS installer configuration for Windows
 nsis:
@@ -60,14 +60,14 @@ nsis:
     deleteAppDataOnUninstall: true
     createDesktopShortcut: always
     createStartMenuShortcut: true
-    shortcutName: Glass
+    shortcutName: Reetreev
 
 # macOS specific configuration
 mac:
     # The application category type
     category: public.app-category.utilities
     # Path to the .icns icon file
-    icon: src/ui/assets/logo.icns
+    icon: src/ui/assets/reetreev-logo.icns
     # Minimum macOS version (supports both Intel and Apple Silicon)
     minimumSystemVersion: '11.0'
     hardenedRuntime: true

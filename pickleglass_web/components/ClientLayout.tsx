@@ -3,12 +3,14 @@
 import { useState, useEffect } from 'react'
 import Sidebar from '@/components/Sidebar'
 import SearchPopup from '@/components/SearchPopup'
+import { useAuth } from '@/utils/auth'
 
 export default function ClientLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const { showSidebar, isLoading } = useAuth()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
 
@@ -26,19 +28,23 @@ export default function ClientLayout({
 
   return (
     <div className="flex h-screen">
-      <Sidebar 
-        isCollapsed={isSidebarCollapsed} 
-        onToggle={setIsSidebarCollapsed}
-        onSearchClick={() => setIsSearchOpen(true)}
-      />
-      <main className="flex-1 overflow-auto bg-white">
+      {showSidebar && (
+        <Sidebar 
+          isCollapsed={isSidebarCollapsed} 
+          onToggle={setIsSidebarCollapsed}
+          onSearchClick={() => setIsSearchOpen(true)}
+        />
+      )}
+      <main className={`flex-1 overflow-auto bg-white ${!showSidebar ? 'w-full' : ''}`}>
         {children}
       </main>
       
-      <SearchPopup 
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-      />
+      {showSidebar && (
+        <SearchPopup 
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+        />
+      )}
     </div>
   )
-} 
+}

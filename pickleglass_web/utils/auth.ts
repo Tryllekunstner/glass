@@ -4,10 +4,18 @@ import { UserProfile, setUserInfo, findOrCreateUser } from './api'
 import { auth as firebaseAuth } from './firebase'
 import { onAuthStateChanged, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth'
 
+export interface AuthState {
+  isAuthenticated: boolean;
+  user: UserProfile | null;
+  isLoading: boolean;
+  showSidebar: boolean;
+}
+
 export const useAuth = () => {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showSidebar, setShowSidebar] = useState(false)
   
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser: FirebaseUser | null) => {
@@ -42,7 +50,18 @@ export const useAuth = () => {
     return () => unsubscribe();
   }, [])
 
-  return { user, isLoading, error }
+  // Update sidebar visibility based on authentication state
+  useEffect(() => {
+    setShowSidebar(!!user && !isLoading);
+  }, [user, isLoading]);
+
+  return { 
+    user, 
+    isLoading, 
+    error, 
+    showSidebar,
+    isAuthenticated: !!user 
+  }
 }
 
 export const useRedirectIfNotAuth = () => {
