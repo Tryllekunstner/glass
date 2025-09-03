@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { UserProfile, setUserInfo, findOrCreateUser } from './api'
 import { auth as firebaseAuth } from './firebase'
-import { onAuthStateChanged, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth'
+import { onAuthStateChanged, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile, sendPasswordResetEmail } from 'firebase/auth'
 
 export interface AuthState {
   isAuthenticated: boolean;
@@ -128,6 +128,16 @@ export const signOutUser = async (): Promise<void> => {
   }
 };
 
+export const resetPassword = async (email: string): Promise<void> => {
+  try {
+    await sendPasswordResetEmail(firebaseAuth, email);
+    console.log('✅ Password reset email sent to:', email);
+  } catch (error: any) {
+    console.error('Password reset error:', error);
+    throw new Error(getAuthErrorMessage(error.code));
+  }
+};
+
 // Helper function to convert Firebase auth error codes to user-friendly messages
 const getAuthErrorMessage = (errorCode: string): string => {
   switch (errorCode) {
@@ -143,6 +153,20 @@ const getAuthErrorMessage = (errorCode: string): string => {
       return 'Invalid email address.';
     case 'auth/too-many-requests':
       return 'Too many failed attempts. Please try again later.';
+    case 'auth/user-disabled':
+      return 'This account has been disabled. Please contact support.';
+    case 'auth/operation-not-allowed':
+      return 'Email/password authentication is not enabled.';
+    case 'auth/invalid-credential':
+      return 'Invalid email or password.';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your connection and try again.';
+    case 'auth/requires-recent-login':
+      return 'Please sign in again to complete this action.';
+    case 'auth/missing-email':
+      return 'Email address is required.';
+    case 'auth/missing-password':
+      return 'Password is required.';
     default:
       return 'Authentication failed. Please try again.';
   }

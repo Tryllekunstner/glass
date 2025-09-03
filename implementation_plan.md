@@ -1,149 +1,57 @@
 # Implementation Plan
 
 ## Overview
-Transform the pickleglass web application into a Reetreev-branded application with improved authentication flow, optimized performance, and streamlined desktop download functionality.
+Fix white text on white background issue in email/password login form input fields by adding explicit text color classes and handling browser autofill styling.
 
-This implementation addresses frontend performance issues, rebrands from Pickle to Reetreev, implements proper authentication-gated access to the sidebar, removes unnecessary UI elements, and adds smooth desktop application download functionality. The changes will create a more cohesive user experience with proper login flow and brand consistency.
+The issue occurs in light mode where input fields in the EmailPasswordForm component lack explicit text color styling, causing white text to appear on white backgrounds. This makes the form unusable as users cannot see what they're typing. The solution involves adding explicit text color classes to all input fields and ensuring proper contrast in all states including browser autofill scenarios.
 
 ## Types
-Define new branding and authentication-related type definitions.
+No new type definitions required for this styling fix.
 
-**Brand Configuration Types:**
-```typescript
-interface BrandConfig {
-  name: string;
-  displayName: string;
-  protocol: string;
-  logoSymbol: string;
-  logoWord: string;
-  websiteUrl: string;
-}
-
-interface DownloadConfig {
-  enabled: boolean;
-  platforms: {
-    windows: {
-      url: string;
-      filename: string;
-    };
-    mac: {
-      url: string;
-      filename: string;
-    };
-    linux?: {
-      url: string;
-      filename: string;
-    };
-  };
-}
-```
-
-**Authentication State Types:**
-```typescript
-interface AuthState {
-  isAuthenticated: boolean;
-  user: UserProfile | null;
-  isLoading: boolean;
-  showSidebar: boolean;
-}
-```
+The existing TypeScript interfaces and types in the EmailPasswordForm component (LoginFormData, SignupFormData, EmailPasswordFormProps) remain unchanged as this is purely a CSS styling issue.
 
 ## Files
-Modify existing files and create new configuration files for branding and download functionality.
+Modify existing component file to add explicit text styling classes.
 
-**Files to Modify:**
-- `pickleglass_web/app/layout.tsx` - Update metadata and title
-- `pickleglass_web/app/page.tsx` - Update branding references and dashboard content
-- `pickleglass_web/components/ClientLayout.tsx` - Add authentication-gated sidebar rendering
-- `pickleglass_web/components/Sidebar.tsx` - Remove unwanted links, update branding, add desktop download
-- `pickleglass_web/utils/auth.ts` - Enhance authentication state management
-- `pickleglass_web/utils/api.ts` - Update localStorage keys and branding references
-- `pickleglass_web/app/login/page.tsx` - Update deep link protocol
-- `pickleglass_web/app/settings/privacy/page.tsx` - Update external links
-- `pickleglass_web/app/download/page.tsx` - Update download page content
-- `pickleglass_web/app/help/page.tsx` - Update help content references
-- `package.json` - Update product name, description, and keywords
-- `electron-builder.yml` - Update app ID, product name, and protocol scheme
+**Files to be modified:**
+- `pickleglass_web/components/EmailPasswordForm.tsx` - Add explicit text color classes to all input elements
+- `pickleglass_web/app/globals.css` - Add CSS rules to handle browser autofill styling and ensure proper text contrast
 
-**Files to Create:**
-- `pickleglass_web/config/brand.ts` - Centralized branding configuration
-- `pickleglass_web/config/download.ts` - Download configuration and logic
-- `pickleglass_web/public/reetreev-symbol.svg` - Placeholder symbol logo
-- `pickleglass_web/public/reetreev-word.svg` - Placeholder word logo
-- `src/ui/assets/reetreev-logo.ico` - Placeholder Windows icon
-- `src/ui/assets/reetreev-logo.icns` - Placeholder macOS icon
+**No new files needed** - This is a styling fix for existing components.
 
 ## Functions
-Create new utility functions and modify existing ones for branding and download functionality.
+No function signature changes required for this styling fix.
 
-**New Functions:**
-- `getBrandConfig()` - Returns current brand configuration
-- `getDownloadUrl(platform: string)` - Returns appropriate download URL for platform
-- `detectUserPlatform()` - Detects user's operating system
-- `initiateDownload(platform: string)` - Handles desktop app download
-- `createPlaceholderLogo(type: 'symbol' | 'word')` - Generates placeholder SVG logos
-
-**Modified Functions:**
-- `useAuth()` - Add sidebar visibility state management
-- `setUserInfo()` - Update localStorage key to use Reetreev branding
-- `logout()` - Clear Reetreev-specific storage keys
-- `checkApiKeyStatus()` - Remove or modify to exclude "local running" status
+The existing functions in EmailPasswordForm.tsx (handleLoginSubmit, handleSignupSubmit, toggleMode) remain unchanged. Only the JSX className attributes for input elements will be modified to include explicit text color classes.
 
 ## Classes
-Update existing component classes and create new ones for enhanced functionality.
+No new classes or class modifications required for this styling fix.
 
-**Modified Classes:**
-- `ClientLayout` - Add authentication-aware sidebar rendering
-- `Sidebar` - Remove unwanted navigation items, add download functionality
-- `AuthProvider` - Enhanced state management for sidebar visibility
-
-**New Classes:**
-- `DownloadManager` - Handles desktop application downloads
-- `BrandProvider` - Provides branding context throughout the application
-- `PlaceholderLogoGenerator` - Creates temporary logo assets
+The existing React functional component structure remains the same. Only the className props on input elements will be updated to include explicit text color styling.
 
 ## Dependencies
-Add new packages for enhanced download functionality and remove unused dependencies.
+No new dependencies required for this styling fix.
 
-**New Dependencies:**
-```json
-{
-  "ua-parser-js": "^1.0.37",
-  "file-saver": "^2.0.5"
-}
-```
-
-**Configuration Updates:**
-- Update electron-builder configuration for new branding
-- Update Firebase hosting configuration if needed
-- Update any CI/CD configurations for new product name
+The existing dependencies (React, Tailwind CSS, Lucide React icons) are sufficient. The fix uses existing Tailwind utility classes for text colors.
 
 ## Testing
-Update existing tests and create new ones for authentication flow and download functionality.
+Manual testing approach to verify text visibility in form inputs.
 
-**Test File Updates:**
-- `pickleglass_web/__tests__/firebase.test.ts` - Update branding references
-- Create `pickleglass_web/__tests__/auth-flow.test.ts` - Test authentication-gated sidebar
-- Create `pickleglass_web/__tests__/download.test.ts` - Test download functionality
-- Create `pickleglass_web/__tests__/branding.test.ts` - Test brand configuration
+**Testing requirements:**
+- Test email and password input fields in both login and signup modes
+- Verify text is visible when typing manually
+- Test browser autofill scenarios to ensure text remains visible
+- Check placeholder text visibility
+- Verify error state styling still works correctly
+- Test focus states and hover states
 
-**Test Scenarios:**
-- Unauthenticated users cannot see sidebar
-- Authenticated users see proper sidebar with Reetreev branding
-- Download functionality works across different platforms
-- All Pickle references are replaced with Reetreev
-- Deep linking works with new protocol scheme
+**No automated tests needed** - This is a visual styling fix that requires manual verification.
 
 ## Implementation Order
-Sequential steps to minimize conflicts and ensure successful integration.
+Sequential styling fixes to ensure consistent text visibility across all form inputs.
 
-1. **Create Brand Configuration** - Set up centralized branding system
-2. **Generate Placeholder Assets** - Create temporary logo files
-3. **Update Authentication Flow** - Implement sidebar gating logic
-4. **Update Branding References** - Replace all Pickle references with Reetreev
-5. **Remove Unwanted UI Elements** - Clean up sidebar and remove specified items
-6. **Implement Download Functionality** - Add desktop app download feature
-7. **Update Electron Configuration** - Modify build and protocol settings
-8. **Update Tests** - Ensure all functionality works correctly
-9. **Performance Optimization** - Address frontend performance issues
-10. **Final Testing and Validation** - Comprehensive testing of all changes
+1. **Add explicit text color classes to login form inputs** - Update email and password input fields in the login section with `text-gray-900` class
+2. **Add explicit text color classes to signup form inputs** - Update display name, email, password, and confirm password fields in signup section with `text-gray-900` class  
+3. **Add browser autofill CSS rules** - Add CSS rules in globals.css to handle browser autofill styling and ensure text remains visible
+4. **Test all input states** - Manually verify text visibility in normal, focus, error, and autofill states
+5. **Verify form functionality** - Ensure all form interactions still work correctly after styling changes

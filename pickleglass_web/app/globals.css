@@ -31,4 +31,32 @@ body {
   .text-balance {
     text-wrap: balance;
   }
-} 
+}
+
+/* Form input autofill styling fixes */
+@layer base {
+  /* Override browser autofill styles to ensure proper text contrast */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px white inset !important;
+    -webkit-text-fill-color: #111827 !important; /* text-gray-900 equivalent */
+    color: #111827 !important;
+  }
+  
+  /* Firefox autofill styling */
+  input:-moz-autofill,
+  input:-moz-autofill:hover,
+  input:-moz-autofill:focus {
+    background-color: white !important;
+    color: #111827 !important; /* text-gray-900 equivalent */
+  }
+  
+  /* Ensure all form inputs have proper text color */
+  input[type="email"],
+  input[type="password"],
+  input[type="text"] {
+    color: #111827 !important; /* text-gray-900 equivalent */
+  }
+}
