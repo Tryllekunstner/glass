@@ -37,10 +37,11 @@ async function getVirtualKeyByEmail(email, idToken) {
 
 class AuthService {
     constructor() {
-        this.currentUserId = 'default_user';
-        this.currentUserMode = 'local'; // 'local' or 'firebase'
+        this.currentUserId = null; // No default user - authentication required
+        this.currentUserMode = 'firebase'; // Only firebase mode supported
         this.currentUser = null;
         this.isInitialized = false;
+        this.authenticationRequired = true; // Mandatory authentication flag
 
         // This ensures the key is ready before any login/logout state change.
         this.initializationPromise = null;
@@ -94,8 +95,8 @@ class AuthService {
                     }
 
                 } else {
-                    // User signed OUT
-                    console.log(`[AuthService] No Firebase user.`);
+                    // User signed OUT - No local mode fallback
+                    console.log(`[AuthService] No Firebase user - authentication required.`);
                     if (previousUser) {
                         console.log(`[AuthService] Clearing API key for logged-out user: ${previousUser.uid}`);
                         if (global.modelStateService) {
@@ -104,10 +105,10 @@ class AuthService {
                         }
                     }
                     this.currentUser = null;
-                    this.currentUserId = 'default_user';
-                    this.currentUserMode = 'local';
+                    this.currentUserId = null; // No fallback user
+                    this.currentUserMode = 'firebase'; // Still firebase mode, just not authenticated
 
-                    // End active sessions for the local/default user as well.
+                    // End active sessions
                     await sessionRepository.endAllActiveSessions();
 
                     encryptionService.resetSessionKey();
@@ -189,23 +190,34 @@ class AuthService {
                 displayName: this.currentUser.displayName,
                 mode: 'firebase',
                 isLoggedIn: true,
-                //////// before_modelStateService ////////
-                // hasApiKey: this.hasApiKey // Always true for firebase users, but good practice
-                //////// before_modelStateService ////////
+                authenticationRequired: false
             };
         }
+        
+        // No local mode fallback - authentication is required
         return {
-            uid: this.currentUserId, // returns 'default_user'
-            email: 'contact@pickle.com',
-            displayName: 'Default User',
-            mode: 'local',
+            uid: null,
+            email: null,
+            displayName: null,
+            mode: 'firebase',
             isLoggedIn: false,
-            //////// before_modelStateService ////////
-            // hasApiKey: this.hasApiKey
-            //////// before_modelStateService ////////
+            authenticationRequired: true
         };
+    }
+
+    // Helper method to check if user is authenticated
+    isAuthenticated() {
+        return !!(this.currentUser && this.currentUserId);
+    }
+
+    // Helper method to require authentication for operations
+    requireAuthentication() {
+        if (!this.isAuthenticated()) {
+            throw new Error('Authentication required. Please sign in to continue.');
+        }
+        return this.currentUserId;
     }
 }
 
 const authService = new AuthService();
-module.exports = authService; 
+module.exports = authService;

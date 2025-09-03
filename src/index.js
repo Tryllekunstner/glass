@@ -215,11 +215,23 @@ app.whenReady().then(async () => {
             }
         }, 2000); // Wait 2 seconds after app start
 
-        // Start web server and create windows ONLY after all initializations are successful
+        // Start web server ONLY after all initializations are successful
         WEB_PORT = await startWebStack();
         console.log('Web front-end listening on', WEB_PORT);
         
-        createWindows();
+        // Check authentication status before creating windows
+        const currentUser = authService.getCurrentUser();
+        if (currentUser.isLoggedIn) {
+            console.log('[Startup] User authenticated, creating windows');
+            createWindows();
+        } else {
+            console.log('[Startup] No authenticated user, opening login flow');
+            // Open login in browser instead of creating app windows
+            await authService.startFirebaseAuthFlow();
+            
+            // Create a minimal window that waits for authentication
+            createAuthWaitWindow();
+        }
 
     } catch (err) {
         console.error('>>> [index.js] Database initialization failed - some features may not work', err);
@@ -691,6 +703,127 @@ async function startWebStack() {
    API:      http://localhost:${apiPort}`);
 
   return frontendPort;
+}
+
+// Auto-update initialization
+// Create a minimal authentication waiting window
+function createAuthWaitWindow() {
+    const authWindow = new BrowserWindow({
+        width: 400,
+        height: 300,
+        center: true,
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        alwaysOnTop: true,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true
+        }
+    });
+
+    // Create a simple HTML page for the auth wait window
+    const authWaitHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Pickle Glass - Authentication Required</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    margin: 0;
+                    padding: 20px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    text-align: center;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    height: 100vh;
+                    box-sizing: border-box;
+                }
+                .logo {
+                    font-size: 24px;
+                    font-weight: bold;
+                    margin-bottom: 20px;
+                }
+                .message {
+                    font-size: 16px;
+                    margin-bottom: 20px;
+                    line-height: 1.5;
+                }
+                .spinner {
+                    width: 40px;
+                    height: 40px;
+                    border: 4px solid rgba(255,255,255,0.3);
+                    border-top: 4px solid white;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                    margin: 20px auto;
+                }
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+                .instruction {
+                    font-size: 14px;
+                    opacity: 0.8;
+                    margin-top: 20px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="logo">🔒 Pickle Glass</div>
+            <div class="message">Authentication Required</div>
+            <div class="spinner"></div>
+            <div class="instruction">
+                Please complete the login process in your browser.<br>
+                This window will close automatically once you're authenticated.
+            </div>
+        </body>
+        </html>
+    `;
+
+    authWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(authWaitHtml)}`);
+
+    // Listen for authentication state changes
+    const handleAuthStateChange = (userState) => {
+        if (userState.isLoggedIn) {
+            console.log('[AuthWait] User authenticated, closing auth wait window and creating main windows');
+            authWindow.close();
+            createWindows();
+        }
+    };
+
+    // Listen for user state changes from authService
+    authWindow.webContents.once('dom-ready', () => {
+        // Set up IPC listener for auth state changes
+        const { ipcMain } = require('electron');
+        
+        // Listen for auth state changes
+        const removeListener = () => {
+            // Clean up any listeners when window closes
+        };
+        
+        authWindow.on('closed', removeListener);
+    });
+
+    // Also listen directly to authService broadcasts
+    const originalBroadcast = authService.broadcastUserState;
+    authService.broadcastUserState = function() {
+        const userState = this.getCurrentUser();
+        if (userState.isLoggedIn && !authWindow.isDestroyed()) {
+            handleAuthStateChange(userState);
+        }
+        return originalBroadcast.call(this);
+    };
+
+    authWindow.on('closed', () => {
+        // Restore original broadcast function
+        authService.broadcastUserState = originalBroadcast;
+    });
+
+    return authWindow;
 }
 
 // Auto-update initialization

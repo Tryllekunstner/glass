@@ -18,6 +18,10 @@
         "build:renderer": "node build.js",
         "build:web": "cd pickleglass_web && npm run build && cd ..",
         "build:all": "npm run build:renderer && npm run build:web",
+        "build:firebase": "npm run install:web && npm run build:web",
+        "deploy:firebase": "npm run build:firebase && firebase deploy",
+        "serve:firebase": "npm run build:firebase && firebase serve",
+        "validate:deployment": "node validate-deployment.js",
         "watch:renderer": "node build.js --watch"
     },
     "keywords": [

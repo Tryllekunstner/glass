@@ -2,24 +2,19 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { UserProfile, setUserInfo, findOrCreateUser } from './api'
 import { auth as firebaseAuth } from './firebase'
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth'
-
-const defaultLocalUser: UserProfile = {
-  uid: 'default_user',
-  display_name: 'Default User',
-  email: 'contact@pickle.com',
-};
+import { onAuthStateChanged, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth'
 
 export const useAuth = () => {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [mode, setMode] = useState<'local' | 'firebase' | null>(null)
+  const [error, setError] = useState<string | null>(null)
   
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser: FirebaseUser | null) => {
+      setError(null);
+      
       if (firebaseUser) {
-        console.log('🔥 Firebase mode activated:', firebaseUser.uid);
-        setMode('firebase');
+        console.log('🔥 Firebase user authenticated:', firebaseUser.uid);
         
         let profile: UserProfile = {
           uid: firebaseUser.uid,
@@ -30,18 +25,16 @@ export const useAuth = () => {
         try {
           profile = await findOrCreateUser(profile);
           console.log('✅ Firestore user created/verified:', profile);
+          setUser(profile);
+          setUserInfo(profile);
         } catch (error) {
           console.error('❌ Firestore user creation/verification failed:', error);
+          setError('Failed to initialize user profile');
         }
-
-        setUser(profile);
-        setUserInfo(profile);
       } else {
-        console.log('🏠 Local mode activated');
-        setMode('local');
-        
-        setUser(defaultLocalUser);
-        setUserInfo(defaultLocalUser);
+        console.log('🚫 No authenticated user');
+        setUser(null);
+        setUserInfo(null);
       }
       setIsLoading(false);
     });
@@ -49,7 +42,7 @@ export const useAuth = () => {
     return () => unsubscribe();
   }, [])
 
-  return { user, isLoading, mode }
+  return { user, isLoading, error }
 }
 
 export const useRedirectIfNotAuth = () => {
@@ -57,11 +50,81 @@ export const useRedirectIfNotAuth = () => {
   const router = useRouter()
 
   useEffect(() => {
-    // This hook is now simplified. It doesn't redirect for local mode.
-    // If you want to force login for hosting mode, you'd add logic here.
-    // For example: if (!isLoading && !user) router.push('/login');
-    // But for now, we allow both modes.
+    if (!isLoading && !user) {
+      console.log('🔄 Redirecting to login - no authenticated user');
+      router.push('/login');
+    }
   }, [user, isLoading, router])
 
   return user
-} 
+}
+
+// Authentication helper functions
+export const signIn = async (email: string, password: string): Promise<UserProfile> => {
+  try {
+    const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
+    const firebaseUser = userCredential.user;
+    
+    const profile: UserProfile = {
+      uid: firebaseUser.uid,
+      display_name: firebaseUser.displayName || 'User',
+      email: firebaseUser.email || email,
+    };
+    
+    return await findOrCreateUser(profile);
+  } catch (error: any) {
+    console.error('Sign in error:', error);
+    throw new Error(getAuthErrorMessage(error.code));
+  }
+};
+
+export const signUp = async (email: string, password: string, displayName: string): Promise<UserProfile> => {
+  try {
+    const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+    const firebaseUser = userCredential.user;
+    
+    // Update the user's display name
+    await updateProfile(firebaseUser, { displayName });
+    
+    const profile: UserProfile = {
+      uid: firebaseUser.uid,
+      display_name: displayName,
+      email: email,
+    };
+    
+    return await findOrCreateUser(profile);
+  } catch (error: any) {
+    console.error('Sign up error:', error);
+    throw new Error(getAuthErrorMessage(error.code));
+  }
+};
+
+export const signOutUser = async (): Promise<void> => {
+  try {
+    await signOut(firebaseAuth);
+    setUserInfo(null);
+  } catch (error: any) {
+    console.error('Sign out error:', error);
+    throw new Error('Failed to sign out');
+  }
+};
+
+// Helper function to convert Firebase auth error codes to user-friendly messages
+const getAuthErrorMessage = (errorCode: string): string => {
+  switch (errorCode) {
+    case 'auth/user-not-found':
+      return 'No account found with this email address.';
+    case 'auth/wrong-password':
+      return 'Incorrect password.';
+    case 'auth/email-already-in-use':
+      return 'An account with this email already exists.';
+    case 'auth/weak-password':
+      return 'Password should be at least 6 characters.';
+    case 'auth/invalid-email':
+      return 'Invalid email address.';
+    case 'auth/too-many-requests':
+      return 'Too many failed attempts. Please try again later.';
+    default:
+      return 'Authentication failed. Please try again.';
+  }
+};

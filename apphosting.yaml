@@ -7,10 +7,9 @@ runConfig:
 buildConfig:
   # Install dependencies for both root and web subdirectory
   commands:
-    - npm ci --omit=optional
+    - npm ci --omit=optional --ignore-scripts
     - cd pickleglass_web && npm ci
-    - npm run build:renderer
-    - npm run build:web
+    - cd pickleglass_web && npm run build
 
 # Serve the static files from the Next.js output directory
 serveConfig:

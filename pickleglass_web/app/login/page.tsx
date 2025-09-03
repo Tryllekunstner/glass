@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { auth } from '@/utils/firebase'
-import { Chrome } from 'lucide-react'
+import { Chrome, Shield } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 export default function LoginPage() {
@@ -19,6 +19,8 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider()
+    provider.addScope('email')
+    provider.addScope('profile')
     setIsLoading(true)
     
     try {
@@ -40,13 +42,7 @@ export default function LoginPage() {
             }).toString()
             
             console.log('🔗 Return to electron app via deep link:', deepLinkUrl)
-            
             window.location.href = deepLinkUrl
-            
-            // Maybe we don't need this
-            // setTimeout(() => {
-            //   alert('Login completed. Please return to Pickle Glass app.')
-            // }, 1000)
             
           } catch (error) {
             console.error('❌ Deep link processing failed:', error)
@@ -71,7 +67,7 @@ export default function LoginPage() {
           }
         } 
         else {
-          router.push('/settings')
+          router.push('/')
         }
       }
     } catch (error: any) {
@@ -86,41 +82,46 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col items-center justify-center">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Welcome to Pickle Glass</h1>
-        <p className="text-gray-600 mt-2">Sign in with your Google account to sync your data across all devices.</p>
-        {isElectronMode ? (
-          <p className="text-sm text-blue-600 mt-1 font-medium">🔗 Login requested from Electron app</p>
-        ) : (
-          <p className="text-sm text-gray-500 mt-1">Local mode will run if you don't sign in.</p>
+        <div className="flex items-center justify-center mb-4">
+          <Shield className="h-12 w-12 text-blue-600 mr-3" />
+          <h1 className="text-4xl font-bold text-gray-900">Pickle Glass</h1>
+        </div>
+        <p className="text-gray-600 mt-2 text-lg">Secure cloud-based AI assistant</p>
+        <p className="text-gray-500 mt-1">Authentication required to access all features</p>
+        {isElectronMode && (
+          <p className="text-sm text-blue-600 mt-2 font-medium bg-blue-50 px-3 py-1 rounded-full inline-block">
+            🔗 Login requested from Desktop App
+          </p>
         )}
       </div>
       
-      <div className="w-full max-w-sm">
-        <div className="bg-white p-8 rounded-lg shadow-md border border-gray-200">
+      <div className="w-full max-w-md">
+        <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200">
+          <div className="text-center mb-6">
+            <h2 className="text-xl font-semibold text-gray-900">Sign In Required</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              All data is securely stored in the cloud and synced across your devices
+            </p>
+          </div>
+          
           <button
             onClick={handleGoogleSignIn}
             disabled={isLoading}
-            className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Chrome className="h-5 w-5" />
             <span>{isLoading ? 'Signing in...' : 'Sign in with Google'}</span>
           </button>
           
-          <div className="mt-4 text-center">
-            <button
-              onClick={() => {
-                if (isElectronMode) {
-                  window.location.href = 'pickleglass://auth-success?uid=default_user&email=contact@pickle.com&displayName=Default%20User'
-                } else {
-                  router.push('/settings')
-                }
-              }}
-              className="text-sm text-gray-500 hover:text-gray-700 underline"
-            >
-              Continue in local mode
-            </button>
+          <div className="mt-6 text-center">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-xs text-amber-800">
+                <Shield className="h-4 w-4 inline mr-1" />
+                Authentication is mandatory for security and data synchronization
+              </p>
+            </div>
           </div>
         </div>
         
@@ -130,4 +131,4 @@ export default function LoginPage() {
       </div>
     </div>
   )
-} 
+}

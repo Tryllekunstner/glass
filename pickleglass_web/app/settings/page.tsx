@@ -24,7 +24,7 @@ type Tab = 'profile' | 'privacy' | 'billing'
 type BillingCycle = 'monthly' | 'annually'
 
 export default function SettingsPage() {
-  const { user: userInfo, isLoading, mode } = useAuth()
+  const { user: userInfo, isLoading } = useAuth()
   const [activeTab, setActiveTab] = useState<Tab>('profile')
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
   const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -88,7 +88,8 @@ export default function SettingsPage() {
     return null
   }
 
-  const isFirebaseMode = mode === 'firebase'
+  // For web dashboard, we're always in Firebase mode
+  const isFirebaseMode = typeof window !== 'undefined'
 
   const tabs = [
     { id: 'profile' as Tab, name: 'Personal Profile', href: '/settings' },
@@ -503,4 +504,4 @@ export default function SettingsPage() {
       </div>
     </div>
   )
-} 
+}
