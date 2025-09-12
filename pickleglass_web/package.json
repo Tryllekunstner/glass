@@ -5,18 +5,13 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "node test-server.js",
+    "start": "node server.js",
     "start:next": "next start",
     "start:full": "node server.js",
-    "start:container": "node docker-entrypoint.sh node server.js",
-    "healthcheck": "node healthcheck.js",
     "lint": "next lint",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "docker:build": "docker build -t pickleglass-web .",
-    "docker:run": "docker run -p 8080:8080 -e NODE_ENV=production pickleglass-web",
-    "docker:test": "docker run --rm -p 8080:8080 -e NODE_ENV=production pickleglass-web"
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",
