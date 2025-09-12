@@ -3,9 +3,6 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   
-  // Enable standalone output for containerization
-  output: 'standalone',
-  
   // Explicitly disable static export - ensure server-side rendering only
   trailingSlash: false,
   
@@ -20,7 +17,6 @@ const nextConfig = {
     serverComponentsExternalPackages: [],
     optimizePackageImports: ['lucide-react', 'firebase'],
     // Container-specific optimizations
-    isrMemoryCacheSize: 0, // Disable ISR cache in containers
     workerThreads: false, // Disable worker threads in containers
   },
 

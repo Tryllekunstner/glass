@@ -1,23 +1,20 @@
-# Firebase App Hosting configuration with Dockerfile-based build
+# Firebase App Hosting configuration
 runConfig:
-  # Use custom Dockerfile for containerized deployment
   cpu: 1
-  memory: 1Gi
+  memory: 512Mi
   maxInstances: 10
   minInstances: 0
   concurrency: 80
-  # Environment variables for Cloud Run
   env:
     - variable: PORT
       value: "8080"
     - variable: NODE_ENV
       value: "production"
-    - variable: HOSTNAME
-      value: "0.0.0.0"
 
-# Build configuration using Dockerfile
+# Build configuration - build only the web app, not Electron
 buildConfig:
-  # Use the Dockerfile in the pickleglass_web directory
-  dockerfilePath: pickleglass_web/Dockerfile
-  # Set the build context to the pickleglass_web directory
-  dockerBuildContext: pickleglass_web
+  rootDirectory: pickleglass_web
+  commands:
+    - npm ci
+    - npm run build
+    - npm prune --production
