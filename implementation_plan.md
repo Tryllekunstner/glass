@@ -1,72 +1,117 @@
 # Implementation Plan
 
-Fix white text in input fields and authentication failures in Firebase deployment.
+## Overview
+Implement server-side route protection for the Next.js application to fix the blank page issue when refreshing protected routes like `/login`.
 
-The application has two critical issues: invisible white text in form inputs due to dark mode CSS conflicts, and authentication failures likely caused by Firebase configuration problems in production. These issues prevent users from logging in successfully, making the application unusable in the deployed environment.
+The current application uses client-side authentication checks with `useAuth` hooks and `useEffect` redirects, which causes blank pages on direct navigation or refresh because the server doesn't know how to handle these routes. The solution involves implementing Next.js middleware for server-side route protection, Firebase Admin SDK for server-side authentication verification, and proper Firebase Hosting configuration to support dynamic routes.
 
 ## Types
+Define server-side authentication and middleware types for route protection.
 
-No new type definitions required - this is a styling and configuration fix.
+```typescript
+// Server-side authentication context
+interface ServerAuthContext {
+  user: {
+    uid: string;
+    email: string;
+    displayName?: string;
+  } | null;
+  isAuthenticated: boolean;
+}
 
-The existing TypeScript interfaces and types in the authentication system are sufficient and don't need modification.
+// Middleware configuration
+interface RouteConfig {
+  path: string;
+  requiresAuth: boolean;
+  redirectTo?: string;
+}
+
+// Firebase Admin user verification
+interface VerifiedUser {
+  uid: string;
+  email: string;
+  displayName?: string;
+  emailVerified: boolean;
+}
+```
 
 ## Files
+Implement server-side route protection through middleware and configuration updates.
 
-Fix CSS styling conflicts and Firebase configuration issues.
+**New files to be created:**
+- `pickleglass_web/middleware.ts` - Next.js middleware for route protection
+- `pickleglass_web/lib/firebase-admin.ts` - Firebase Admin SDK configuration
+- `pickleglass_web/lib/auth-middleware.ts` - Authentication middleware utilities
+- `pickleglass_web/lib/route-config.ts` - Route protection configuration
 
-**Modified files:**
-- `pickleglass_web/app/globals.css` - Fix dark mode CSS conflicts causing white text
-- `pickleglass_web/components/EmailPasswordForm.tsx` - Add explicit text color overrides as fallback
-- `pickleglass_web/.env.production` - Update Firebase configuration for production
-- `firebase.json` - Ensure proper environment variable configuration
-
-**Configuration files to verify:**
-- Firebase project settings for environment variables
-- Hosting configuration for proper variable substitution
+**Existing files to be modified:**
+- `pickleglass_web/next.config.js` - Add middleware configuration and rewrites
+- `firebase.json` - Update hosting configuration for dynamic routes
+- `pickleglass_web/package.json` - Add Firebase Admin SDK dependency
+- `pickleglass_web/app/login/page.tsx` - Remove client-side redirect logic
+- `pickleglass_web/app/page.tsx` - Remove client-side authentication checks
+- `pickleglass_web/utils/auth.ts` - Simplify client-side auth to focus on UI state
 
 ## Functions
+Implement server-side authentication verification and route protection functions.
 
-No new functions required - existing authentication functions are working correctly.
+**New functions:**
+- `verifyAuthToken(token: string): Promise<VerifiedUser | null>` in `lib/firebase-admin.ts`
+- `getAuthFromRequest(request: NextRequest): Promise<ServerAuthContext>` in `lib/auth-middleware.ts`
+- `shouldProtectRoute(pathname: string): RouteConfig | null` in `lib/route-config.ts`
+- `handleAuthRedirect(request: NextRequest, config: RouteConfig): NextResponse` in `lib/auth-middleware.ts`
 
-The issue is not with the authentication logic in `utils/auth.ts` or `utils/firebase.ts`, but with CSS styling and environment configuration. The existing `signIn`, `signUp`, and Firebase initialization functions are properly implemented.
+**Modified functions:**
+- Update `useAuth()` in `utils/auth.ts` to remove redirect logic
+- Simplify authentication checks in page components
 
 ## Classes
+No new classes required - using functional approach with Next.js middleware.
 
-No class modifications required.
-
-The existing React components and Firebase service classes are functioning correctly. The issues are environmental rather than structural.
+**Modified classes/components:**
+- `LoginPage` component - remove client-side redirect handling
+- `Home` component - remove authentication redirect logic
+- `ClientLayout` component - simplify to focus on UI state only
 
 ## Dependencies
+Add Firebase Admin SDK for server-side authentication verification.
 
-No new dependencies required.
+```json
+{
+  "firebase-admin": "^12.0.0"
+}
+```
 
-All necessary packages (Firebase SDK, Tailwind CSS, React) are already installed and properly configured. The issues stem from configuration and styling conflicts, not missing dependencies.
+Integration requirements:
+- Firebase Admin SDK requires service account credentials
+- Environment variables for Firebase Admin configuration
+- Next.js middleware configuration for route matching
 
 ## Testing
+Implement comprehensive testing for server-side route protection.
 
-Verify fixes work in both local and production environments.
+**New test files:**
+- `pickleglass_web/__tests__/middleware.test.ts` - Test middleware route protection
+- `pickleglass_web/__tests__/firebase-admin.test.ts` - Test server-side auth verification
 
-**Test scenarios:**
-1. Local development with light/dark mode preferences
-2. Firebase deployment with proper environment variables
-3. Authentication flow with email/password
-4. Input field visibility in both light and dark modes
-5. Cross-browser compatibility for CSS fixes
+**Modified test files:**
+- Update existing auth tests to focus on client-side UI state
+- Add integration tests for protected route access
 
-**Validation steps:**
-1. Test input field text visibility in different browsers
-2. Verify authentication works with correct credentials
-3. Check Firebase console for proper configuration
-4. Test dark mode toggle behavior
-5. Validate environment variable substitution in production
+**Testing approach:**
+- Unit tests for middleware functions
+- Integration tests for route protection
+- E2E tests for authentication flow with page refreshes
 
 ## Implementation Order
+Implement changes in logical sequence to minimize conflicts and ensure successful integration.
 
-Sequential fixes to address styling first, then configuration.
-
-1. **Fix CSS dark mode conflicts** - Update globals.css to prevent white text on white backgrounds
-2. **Add component-level style overrides** - Ensure input fields always have visible text
-3. **Update production environment configuration** - Fix Firebase config variable substitution
-4. **Verify Firebase project settings** - Ensure environment variables are properly set
-5. **Test authentication flow** - Validate login works with correct credentials
-6. **Deploy and verify** - Test fixes in production environment
+1. **Setup Firebase Admin SDK** - Add dependency and configuration
+2. **Create middleware utilities** - Implement auth verification functions
+3. **Implement Next.js middleware** - Add route protection logic
+4. **Update Next.js configuration** - Configure middleware and rewrites
+5. **Update Firebase Hosting configuration** - Support dynamic routes
+6. **Simplify client-side components** - Remove redundant auth checks
+7. **Update authentication utilities** - Focus on UI state management
+8. **Add comprehensive testing** - Ensure route protection works correctly
+9. **Deploy and validate** - Test on Firebase Hosting with real scenarios

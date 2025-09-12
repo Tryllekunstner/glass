@@ -5,6 +5,22 @@ import { auth as firebaseAuth } from './firebase'
 import { onAuthStateChanged, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile, sendPasswordResetEmail } from 'firebase/auth'
 import { useClientOnly } from '../hooks/useClientOnly'
 
+// Helper function to set auth token in cookies for middleware access
+const setAuthTokenCookie = async (user: FirebaseUser | null) => {
+  if (user) {
+    try {
+      const token = await user.getIdToken();
+      // Set cookie with auth token for middleware to access
+      document.cookie = `auth-token=${token}; path=/; max-age=3600; secure; samesite=strict`;
+    } catch (error) {
+      console.error('Failed to get ID token:', error);
+    }
+  } else {
+    // Clear auth token cookie
+    document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  }
+};
+
 export interface AuthState {
   isAuthenticated: boolean;
   user: UserProfile | null;
@@ -28,6 +44,9 @@ export const useAuth = () => {
 
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser: FirebaseUser | null) => {
       setError(null);
+      
+      // Set auth token cookie for middleware access
+      await setAuthTokenCookie(firebaseUser);
       
       if (firebaseUser) {
         console.log('🔥 Firebase user authenticated:', firebaseUser.uid);
@@ -73,19 +92,6 @@ export const useAuth = () => {
   }
 }
 
-export const useRedirectIfNotAuth = () => {
-  const { user, isLoading } = useAuth()
-  const router = useRouter()
-
-  useEffect(() => {
-    if (!isLoading && !user) {
-      console.log('🔄 Redirecting to login - no authenticated user');
-      router.push('/login');
-    }
-  }, [user, isLoading, router])
-
-  return user
-}
 
 // Authentication helper functions
 export const signIn = async (email: string, password: string): Promise<UserProfile> => {

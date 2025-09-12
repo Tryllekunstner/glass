@@ -6,6 +6,21 @@ const nextConfig = {
   // Explicitly disable static export - ensure server-side rendering only
   trailingSlash: false,
   
+  // Environment variable configuration for production builds
+  env: {
+    // Ensure environment variables are available at build time
+    NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    NEXT_PUBLIC_FIREBASE_APP_ID: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+    NEXT_PUBLIC_ENABLE_ANALYTICS: process.env.NEXT_PUBLIC_ENABLE_ANALYTICS,
+    NEXT_PUBLIC_ENABLE_DEBUG: process.env.NEXT_PUBLIC_ENABLE_DEBUG,
+  },
+  
   // Image optimization settings for server-side rendering
   images: { 
     unoptimized: true,
@@ -14,7 +29,7 @@ const nextConfig = {
 
   // Performance optimizations and custom server configuration
   experimental: {
-    serverComponentsExternalPackages: [],
+    serverComponentsExternalPackages: ['firebase-admin'],
     optimizePackageImports: ['lucide-react', 'firebase'],
     // Container-specific optimizations
     workerThreads: false, // Disable worker threads in containers
@@ -56,6 +71,17 @@ const nextConfig = {
     }
 
     return config;
+  },
+
+  // Rewrites for dynamic route handling
+  async rewrites() {
+    return [
+      // Ensure all app routes are handled by Next.js
+      {
+        source: '/((?!api|_next|favicon.ico|public).*)',
+        destination: '/$1',
+      },
+    ];
   },
 
   // Security headers for server-side rendering

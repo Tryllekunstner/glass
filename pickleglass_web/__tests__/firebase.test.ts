@@ -53,6 +53,7 @@ jest.mock('firebase/analytics', () => ({
 }));
 
 import { app, auth, firestore, analytics } from '../utils/firebase';
+import { validateEnvironmentConfig, getFirebaseConfig, logConfigurationStatus } from '../utils/config';
 
 describe('Firebase Configuration', () => {
   test('Firebase app should be initialized', () => {
@@ -111,5 +112,67 @@ describe('Firebase Environment Variables', () => {
     requiredEnvVars.forEach(envVar => {
       expect(typeof process.env[envVar]).toBe('string');
     });
+  });
+});
+
+describe('Configuration Validation', () => {
+  // Mock environment variables for testing
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    jest.resetModules();
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: 'test',
+      NEXT_PUBLIC_FIREBASE_API_KEY: 'AIzaSyA8-g3sUmtRL4qwWCc1_qUwBB6jWh68VH4',
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: 'getseerai.firebaseapp.com',
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: 'getseerai',
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: 'getseerai.appspot.com',
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '992558788759',
+      NEXT_PUBLIC_FIREBASE_APP_ID: '1:992558788759:web:3c8927306728856aadf9d2'
+    };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  test('should validate environment configuration successfully', () => {
+    const { validateEnvironmentConfig } = require('../utils/config');
+    
+    expect(() => {
+      const config = validateEnvironmentConfig();
+      expect(config.NODE_ENV).toBe('test');
+      expect(config.NEXT_PUBLIC_FIREBASE_PROJECT_ID).toBe('getseerai');
+    }).not.toThrow();
+  });
+
+  test('should get Firebase configuration successfully', () => {
+    const { getFirebaseConfig } = require('../utils/config');
+    
+    const config = getFirebaseConfig();
+    expect(config.projectId).toBe('getseerai');
+    expect(config.apiKey).toBe('AIzaSyA8-g3sUmtRL4qwWCc1_qUwBB6jWh68VH4');
+    expect(config.authDomain).toBe('getseerai.firebaseapp.com');
+  });
+
+  test('should throw error for missing environment variables', () => {
+    const { validateEnvironmentConfig } = require('../utils/config');
+    
+    delete process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+    
+    expect(() => {
+      validateEnvironmentConfig();
+    }).toThrow('Missing required environment variables');
+  });
+
+  test('should throw error for placeholder values', () => {
+    const { validateEnvironmentConfig } = require('../utils/config');
+    
+    process.env.NEXT_PUBLIC_FIREBASE_API_KEY = 'your-api-key-here';
+    
+    expect(() => {
+      validateEnvironmentConfig();
+    }).toThrow('Invalid placeholder values found');
   });
 });

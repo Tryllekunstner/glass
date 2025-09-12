@@ -3,7 +3,6 @@
 // Force dynamic rendering - disable static generation
 export const dynamic = 'force-dynamic'
 
-import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/utils/auth'
 import { Shield, Activity, Settings, MessageSquare, Brain } from 'lucide-react'
@@ -12,33 +11,17 @@ export default function Home() {
   const router = useRouter()
   const { user, isLoading } = useAuth()
 
-  useEffect(() => {
-    if (!isLoading) {
-      if (!user) {
-        // No user authenticated - redirect to login
-        console.log('🔄 No authenticated user, redirecting to login');
-        router.push('/login');
-      }
-      // If user is authenticated, stay on this page (dashboard)
-    }
-  }, [user, isLoading, router])
-
-  // Show loading while checking authentication
+  // Show loading while auth state is being determined
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 text-lg">Authenticating...</p>
-          <p className="text-sm text-gray-500 mt-1">Verifying your identity</p>
+          <p className="mt-4 text-gray-600 text-lg">Loading...</p>
+          <p className="text-sm text-gray-500 mt-1">Preparing your dashboard</p>
         </div>
       </div>
     )
-  }
-
-  // If no user, don't render anything (will redirect to login)
-  if (!user) {
-    return null;
   }
 
   // Authenticated user - show dashboard
@@ -51,7 +34,7 @@ export default function Home() {
             <Shield className="h-12 w-12 text-blue-600 mr-3" />
             <h1 className="text-4xl font-bold text-gray-900">Pickle Glass Dashboard</h1>
           </div>
-          <p className="text-xl text-gray-600">Welcome back, {user.display_name}!</p>
+          <p className="text-xl text-gray-600">Welcome back, {user?.display_name || 'User'}!</p>
           <p className="text-gray-500 mt-1">Secure cloud-based AI assistant</p>
         </div>
 

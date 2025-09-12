@@ -4,24 +4,23 @@ import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth"
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { getAnalytics } from "firebase/analytics";
 
-// Firebase configuration using environment variables
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
-};
+// Import configuration utilities
+import { getFirebaseConfig, logConfigurationStatus, isDevelopment } from "./config";
 
-// Validate required configuration
-const requiredConfig = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
-const missingConfig = requiredConfig.filter(key => !firebaseConfig[key as keyof typeof firebaseConfig]);
-
-if (missingConfig.length > 0) {
-  console.error('Missing Firebase configuration:', missingConfig);
-  throw new Error(`Missing Firebase configuration: ${missingConfig.join(', ')}`);
+// Get validated Firebase configuration
+let firebaseConfig;
+try {
+  firebaseConfig = getFirebaseConfig();
+  
+  // Log configuration status for debugging
+  if (isDevelopment()) {
+    logConfigurationStatus(true); // Include values in development
+  } else {
+    logConfigurationStatus(false); // Hide values in production
+  }
+} catch (error) {
+  console.error('🚨 Firebase Configuration Error:', error);
+  throw new Error(`Firebase configuration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
 }
 
 // Initialize Firebase
