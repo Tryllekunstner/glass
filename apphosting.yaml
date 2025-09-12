@@ -13,8 +13,7 @@ runConfig:
 
 # Build configuration
 buildConfig:
-  # Install dependencies for both root and web subdirectory
+  # Only install and build the web application, skip root dependencies
   commands:
-    - npm ci --omit=optional --ignore-scripts
     - cd pickleglass_web && npm ci
     - cd pickleglass_web && npm run build

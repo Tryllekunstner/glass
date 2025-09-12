@@ -17,9 +17,11 @@ The Next.js application was not properly configured to:
 ### 1. Created Custom Next.js Server (`pickleglass_web/server.js`)
 - Reads PORT environment variable (defaults to 3000 for local development)
 - Listens on 0.0.0.0 (all interfaces) for Cloud Run compatibility
-- Provides proper error handling and logging
-- Supports graceful shutdown
+- Provides comprehensive error handling and detailed logging with timestamps
+- Includes health check endpoints (/health and /healthz)
+- Supports graceful shutdown with proper signal handling
 - Works in both development and production modes
+- Includes startup timeout protection and performance monitoring
 
 ### 2. Updated Package Scripts (`pickleglass_web/package.json`)
 - Changed `start` script from `next start` to `node server.js`
@@ -31,10 +33,11 @@ The Next.js application was not properly configured to:
 - Consolidated duplicate experimental settings
 - Maintained existing optimizations and security headers
 
-### 4. Updated Firebase App Hosting Configuration (`apphosting.yaml`)
+### 4. Fixed Firebase App Hosting Configuration (`apphosting.yaml`)
+- **CRITICAL FIX**: Removed root directory dependency installation that was triggering Electron build
+- Now only installs and builds the web application (`cd pickleglass_web && npm ci && npm run build`)
 - Added explicit NODE_ENV=production environment variable
 - Improved documentation in comments
-- Maintained existing build process
 
 ## Testing Results
 
