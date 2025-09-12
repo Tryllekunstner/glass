@@ -127,6 +127,14 @@ async function healthCheckWithAuth() {
     // Try to import and check Firebase Admin
     const { healthCheck, authService } = require('./firebase-admin');
     
+    // Initialize the auth service first
+    try {
+      authService.initialize();
+    } catch (initError) {
+      console.warn('⚠️  Firebase Admin SDK initialization failed:', initError.message);
+      return true; // Graceful degradation
+    }
+    
     // Check if Firebase Admin SDK is initialized
     if (!authService.initialized) {
       console.warn('⚠️  Firebase Admin SDK not initialized, skipping auth health check');
@@ -145,6 +153,7 @@ async function healthCheckWithAuth() {
 
   } catch (error) {
     console.warn('⚠️  Firebase Admin SDK not available:', error.message);
+    console.warn('Stack trace:', error.stack);
     // Return true for graceful degradation - server can start without auth
     return true;
   }

@@ -4,8 +4,34 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const compression = require('compression');
 
-// Import authentication middleware
-const { authenticateRequest, healthCheck } = require('./server/middleware/auth');
+// Import authentication middleware with error handling
+let authenticateRequest, healthCheck;
+try {
+  const authMiddleware = require('./server/middleware/auth');
+  authenticateRequest = authMiddleware.authenticateRequest;
+  healthCheck = authMiddleware.healthCheck;
+  console.log('✅ Authentication middleware loaded successfully');
+} catch (error) {
+  console.error('❌ Failed to load authentication middleware:', error.message);
+  console.error('Stack trace:', error.stack);
+  
+  // Create fallback middleware
+  authenticateRequest = (req, res, next) => {
+    console.warn('⚠️  Using fallback authentication middleware');
+    req.auth = { user: null, isAuthenticated: false, fallback: true };
+    req.user = null;
+    next();
+  };
+  
+  healthCheck = (req, res) => {
+    res.status(503).json({
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      service: 'authentication',
+      error: 'Authentication middleware failed to load',
+    });
+  };
+}
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = '0.0.0.0'; // Listen on all interfaces for Cloud Run
@@ -37,12 +63,17 @@ async function startServer() {
   try {
     console.log(`[${new Date().toISOString()}] Starting Next.js server with authentication...`);
     
-    // Run startup health checks
-    const { runStartupValidation } = require('./server/utils/startup-health');
-    const healthResults = await runStartupValidation();
-    
-    if (!healthResults.healthy) {
-      console.warn('⚠️  Some startup checks failed, but continuing with server startup...');
+    // Run startup health checks with error handling
+    try {
+      const { runStartupValidation } = require('./server/utils/startup-health');
+      const healthResults = await runStartupValidation();
+      
+      if (!healthResults.healthy) {
+        console.warn('⚠️  Some startup checks failed, but continuing with server startup...');
+      }
+    } catch (healthError) {
+      console.error('❌ Startup health checks failed:', healthError.message);
+      console.warn('⚠️  Continuing with server startup despite health check failures...');
     }
     
     // Prepare the Next.js app with timeout
