@@ -12,8 +12,9 @@ const nextConfig = {
     formats: ['image/webp', 'image/avif']
   },
 
-  // Performance optimizations
+  // Performance optimizations and custom server configuration
   experimental: {
+    serverComponentsExternalPackages: [],
     optimizePackageImports: ['lucide-react', 'firebase']
   },
 

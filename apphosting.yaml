@@ -1,13 +1,15 @@
 # Firebase App Hosting configuration
 runConfig:
-  # Use Node.js 18 or 20 for better compatibility
+  # Use Node.js 20 for better compatibility
   runtime: nodejs20
-  # Start the Next.js server
+  # Start the custom Next.js server that handles PORT environment variable
   startCommand: cd pickleglass_web && npm start
   # Set the port that the container should listen on
   env:
     - variable: PORT
       value: "8080"
+    - variable: NODE_ENV
+      value: "production"
 
 # Build configuration
 buildConfig:

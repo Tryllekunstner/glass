@@ -1,124 +1,90 @@
 # Implementation Plan
 
-Fix login page refresh issue caused by client-side hydration problems with window object access.
+## Overview
+Fix Firebase App Hosting deployment failure where the container fails to start and listen on port 8080 due to Next.js server configuration issues.
 
-The login page currently fails to render properly on refresh due to server-side rendering (SSR) and client-side rendering (CSR) mismatches. The root cause is improper handling of browser-only APIs like `window.location.search` during the hydration process. This creates inconsistencies between what the server renders and what the client expects, resulting in a blank page on refresh.
+The core problem is that the Firebase App Hosting configuration expects the Next.js application to start a server listening on port 8080, but the current setup doesn't properly handle the PORT environment variable and server startup sequence. The build succeeds but the runtime fails because the Next.js server isn't configured to bind to the correct port that Cloud Run expects.
 
-## [Overview]
+## Types
+No new type definitions required for this fix.
 
-Resolve SSR/CSR hydration mismatches in the login page by implementing proper Next.js patterns for client-side only code.
+The existing TypeScript interfaces and types in the Next.js application are sufficient. This is primarily a configuration and server startup issue rather than a type system problem.
 
-The issue stems from accessing `window.location.search` in a `useEffect` hook before proper hydration is complete. This causes React hydration errors where the server-rendered content doesn't match the client-rendered content, leading to blank pages on refresh. The solution involves implementing proper client-side detection patterns, using Next.js router for URL parameter handling, and ensuring all browser-specific code runs only after hydration is complete.
+## Files
+Modify existing configuration files to fix server startup and port binding.
 
-## [Types]
+**Files to be modified:**
+- `pickleglass_web/next.config.js` - Add server configuration for port binding
+- `pickleglass_web/package.json` - Add custom start script that respects PORT environment variable
+- `apphosting.yaml` - Update build and run configuration for proper Next.js deployment
 
-Define TypeScript interfaces for improved type safety and hydration state management.
+**New files to be created:**
+- `pickleglass_web/server.js` - Custom Next.js server that properly handles PORT environment variable
 
-```typescript
-interface HydrationState {
-  isHydrated: boolean;
-  isElectronMode: boolean;
-  urlParams: URLSearchParams | null;
-}
+## Functions
+Add custom server startup function to handle port configuration.
 
-interface ClientOnlyProps {
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
-}
+**New functions:**
+- `startServer()` in `pickleglass_web/server.js` - Custom Next.js server startup function that:
+  - Reads PORT environment variable (defaults to 3000 locally, uses 8080 in production)
+  - Starts Next.js server with proper port binding
+  - Handles graceful shutdown
+  - Provides proper error handling and logging
 
-interface UseClientOnlyReturn {
-  isClient: boolean;
-  isHydrated: boolean;
-}
-```
+**Modified functions:**
+- Update `start` script in `pickleglass_web/package.json` to use custom server
+- Update build commands in root `package.json` to ensure proper build sequence
 
-## [Files]
+## Classes
+No new classes required for this fix.
 
-Modify existing files and create new utilities for proper client-side handling.
+This is a configuration and server setup issue that doesn't require new class definitions. The existing Next.js application structure and React components remain unchanged.
 
-**Modified Files:**
-- `pickleglass_web/app/login/page.tsx` - Replace window object access with proper Next.js patterns
-- `pickleglass_web/utils/auth.ts` - Add client-side detection utilities
-- `pickleglass_web/components/ClientLayout.tsx` - Ensure proper hydration handling
+## Dependencies
+No new dependencies required.
 
-**New Files:**
-- `pickleglass_web/hooks/useClientOnly.ts` - Custom hook for client-side detection
-- `pickleglass_web/components/ClientOnly.tsx` - Component wrapper for client-side only content
-- `pickleglass_web/utils/clientUtils.ts` - Utilities for safe client-side operations
+All necessary packages (Next.js, React) are already installed. The fix uses built-in Next.js server capabilities and standard Node.js modules for port handling.
 
-## [Functions]
+## Testing
+Add validation for server startup and port binding.
 
-Implement new functions and modify existing ones for proper hydration handling.
+**Test requirements:**
+- Verify server starts correctly with PORT environment variable
+- Test local development still works with default port 3000
+- Validate production build and server startup sequence
+- Ensure Firebase App Hosting deployment succeeds
 
-**New Functions:**
-- `useClientOnly()` in `hooks/useClientOnly.ts` - Hook to detect client-side rendering state
-- `ClientOnly()` in `components/ClientOnly.tsx` - Component to wrap client-side only content
-- `getUrlParams()` in `utils/clientUtils.ts` - Safe URL parameter extraction
-- `isElectronEnvironment()` in `utils/clientUtils.ts` - Safe Electron detection
+**Testing approach:**
+- Local testing with `npm run dev` and `npm start`
+- Environment variable testing with different PORT values
+- Firebase App Hosting deployment testing
 
-**Modified Functions:**
-- `LoginPage()` in `app/login/page.tsx` - Replace direct window access with safe alternatives
-- `useAuth()` in `utils/auth.ts` - Add hydration state management
-- `ClientLayout()` in `components/ClientLayout.tsx` - Ensure proper mounting sequence
+## Implementation Order
+Sequential implementation to minimize deployment disruption.
 
-## [Classes]
+1. **Create custom Next.js server** (`pickleglass_web/server.js`)
+   - Implement PORT environment variable handling
+   - Add proper error handling and logging
+   - Ensure compatibility with existing Next.js configuration
 
-No new classes required for this implementation.
+2. **Update package.json scripts** (`pickleglass_web/package.json`)
+   - Modify start script to use custom server
+   - Ensure development workflow remains unchanged
 
-The solution focuses on functional components and hooks following React best practices. All hydration-related logic will be implemented using custom hooks and utility functions rather than class-based components.
+3. **Update Next.js configuration** (`pickleglass_web/next.config.js`)
+   - Add any necessary server-side configuration
+   - Ensure compatibility with custom server
 
-## [Dependencies]
+4. **Update Firebase App Hosting configuration** (`apphosting.yaml`)
+   - Verify build and start commands are correct
+   - Ensure PORT environment variable is properly set
 
-No new external dependencies required.
+5. **Test and validate**
+   - Local testing of server startup
+   - Firebase App Hosting deployment testing
+   - Verify application functionality after deployment
 
-The implementation uses existing Next.js and React patterns without requiring additional packages. All solutions leverage built-in Next.js router functionality and React hooks that are already available in the project.
-
-## [Testing]
-
-Comprehensive testing approach for hydration fixes.
-
-**Test Files to Create:**
-- `pickleglass_web/__tests__/hydration.test.ts` - Test hydration behavior
-- `pickleglass_web/__tests__/clientOnly.test.ts` - Test client-only components
-
-**Existing Test Modifications:**
-- Update `pickleglass_web/__tests__/auth-flow.test.ts` - Add hydration scenarios
-- Enhance `pickleglass_web/__tests__/firebase.test.ts` - Test SSR compatibility
-
-**Manual Testing Strategy:**
-- Test page refresh on `/login` route
-- Verify Electron mode detection works correctly
-- Confirm no hydration warnings in console
-- Test with JavaScript disabled (graceful degradation)
-
-## [Implementation Order]
-
-Sequential implementation steps to minimize conflicts and ensure successful integration.
-
-1. **Create Client-Side Detection Utilities**
-   - Implement `hooks/useClientOnly.ts`
-   - Create `components/ClientOnly.tsx`
-   - Add `utils/clientUtils.ts`
-
-2. **Update Authentication Utilities**
-   - Modify `utils/auth.ts` to handle hydration state
-   - Add client-side detection to auth hooks
-
-3. **Fix Login Page Implementation**
-   - Replace window object access in `app/login/page.tsx`
-   - Implement proper URL parameter handling
-   - Add loading states for hydration
-
-4. **Update Layout Components**
-   - Ensure `components/ClientLayout.tsx` handles hydration properly
-   - Add fallback states for server-side rendering
-
-5. **Implement Testing**
-   - Create hydration-specific tests
-   - Update existing auth flow tests
-   - Add manual testing procedures
-
-6. **Validation and Cleanup**
-   - Test all scenarios (refresh, direct navigation, Electron mode)
-   - Remove any remaining direct window object access
-   - Verify no hydration warnings in console
+6. **Deploy and monitor**
+   - Deploy to Firebase App Hosting
+   - Monitor logs for successful startup
+   - Verify application is accessible and functional
