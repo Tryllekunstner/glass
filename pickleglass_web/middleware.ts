@@ -1,73 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthFromRequest, handleAuthRedirect, handleLoginPageAccess, addAuthHeaders } from './lib/auth-middleware';
-import { shouldProtectRoute } from './lib/route-config';
 
 /**
- * Next.js middleware for server-side route protection
- * This runs on every request before the page is rendered
+ * Next.js Middleware - DISABLED
+ * 
+ * Server-side authentication is now handled by Express middleware in server.js
+ * This middleware is kept minimal to avoid conflicts with the Express authentication layer
+ * 
+ * The Express middleware provides:
+ * - Firebase Admin SDK token verification
+ * - Route protection and redirects
+ * - Session management
+ * - Rate limiting
+ * - Security headers
  */
-export async function middleware(request: NextRequest) {
-  const pathname = request.nextUrl.pathname;
+
+export function middleware(request: NextRequest) {
+  // Let Express middleware handle all authentication and route protection
+  // This middleware only handles basic Next.js functionality
   
-  // Skip middleware for static files and API routes that don't need protection
-  if (
-    pathname.startsWith('/_next/') ||
-    pathname.startsWith('/favicon.ico') ||
-    pathname.startsWith('/public/') ||
-    pathname.includes('.')
-  ) {
-    return NextResponse.next();
-  }
+  const response = NextResponse.next();
   
-  try {
-    // Get authentication context from request
-    const authContext = await getAuthFromRequest(request);
-    
-    // Check if current route requires protection
-    const routeConfig = shouldProtectRoute(pathname);
-    
-    // Handle authenticated users trying to access login page
-    const loginRedirect = handleLoginPageAccess(request, authContext);
-    if (loginRedirect) {
-      return addAuthHeaders(loginRedirect, authContext);
-    }
-    
-    // Handle route protection
-    if (routeConfig && routeConfig.requiresAuth && !authContext.isAuthenticated) {
-      const authRedirect = handleAuthRedirect(request, routeConfig);
-      if (authRedirect) {
-        return addAuthHeaders(authRedirect, authContext);
-      }
-    }
-    
-    // Continue to the requested page
-    const response = NextResponse.next();
-    return addAuthHeaders(response, authContext);
-    
-  } catch (error) {
-    console.error('Middleware error:', error);
-    
-    // On error, check if route requires auth and redirect to login if needed
-    const routeConfig = shouldProtectRoute(pathname);
-    if (routeConfig && routeConfig.requiresAuth) {
-      const redirectUrl = new URL('/login', request.url);
-      return NextResponse.redirect(redirectUrl);
-    }
-    
-    // For non-protected routes, continue with request
-    return NextResponse.next();
-  }
+  // Add basic security headers (Express middleware adds more comprehensive ones)
+  response.headers.set('X-Middleware', 'nextjs-minimal');
+  
+  return response;
 }
 
 /**
  * Configure which routes the middleware should run on
- * This matcher ensures middleware only runs on app routes, not static files
+ * Keep this minimal since Express handles authentication
  */
 export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
-     * - api (API routes)
+     * - api (API routes are handled by Express)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)

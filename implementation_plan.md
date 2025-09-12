@@ -1,117 +1,83 @@
 # Implementation Plan
 
 ## Overview
-Implement server-side route protection for the Next.js application to fix the blank page issue when refreshing protected routes like `/login`.
+Clean up the Glass codebase by removing unused and unnecessary files, particularly focusing on markdown documentation files while preserving only implementation_plan.md for deep-planning purposes.
 
-The current application uses client-side authentication checks with `useAuth` hooks and `useEffect` redirects, which causes blank pages on direct navigation or refresh because the server doesn't know how to handle these routes. The solution involves implementing Next.js middleware for server-side route protection, Firebase Admin SDK for server-side authentication verification, and proper Firebase Hosting configuration to support dynamic routes.
+The codebase is a complex Electron application with a Next.js web frontend, Firebase integration, and various supporting services. After thorough investigation, I've identified numerous files that can be safely removed without affecting functionality. The cleanup will focus on documentation files, deployment guides, build artifacts, and other non-essential files while preserving the core application structure and the single required implementation_plan.md file.
 
 ## Types
-Define server-side authentication and middleware types for route protection.
+No type system changes required.
 
-```typescript
-// Server-side authentication context
-interface ServerAuthContext {
-  user: {
-    uid: string;
-    email: string;
-    displayName?: string;
-  } | null;
-  isAuthenticated: boolean;
-}
-
-// Middleware configuration
-interface RouteConfig {
-  path: string;
-  requiresAuth: boolean;
-  redirectTo?: string;
-}
-
-// Firebase Admin user verification
-interface VerifiedUser {
-  uid: string;
-  email: string;
-  displayName?: string;
-  emailVerified: boolean;
-}
-```
+This cleanup operation involves only file deletion and does not require modifications to TypeScript interfaces, data structures, or type definitions. All existing type definitions in the codebase will remain unchanged.
 
 ## Files
-Implement server-side route protection through middleware and configuration updates.
+Remove unused and unnecessary files from the codebase.
 
-**New files to be created:**
-- `pickleglass_web/middleware.ts` - Next.js middleware for route protection
-- `pickleglass_web/lib/firebase-admin.ts` - Firebase Admin SDK configuration
-- `pickleglass_web/lib/auth-middleware.ts` - Authentication middleware utilities
-- `pickleglass_web/lib/route-config.ts` - Route protection configuration
+**Files to be deleted:**
+- **Documentation files (.md):** All markdown files except implementation_plan.md including:
+  - Root level: README.md, CONTRIBUTING.md, LICENSE, CLOUD_RUN_*.md, DEPLOYMENT_GUIDE.md, DEPLOY_TO_FIREBASE.md, FIREBASE_*.md, fix-hosting.md, GET_FIREBASE_CONFIG.md
+  - docs/: DESIGN_PATTERNS.md, refactor-plan.md
+  - aec/: README.md, BUILDING.md, pyaec/README.md, pyaec/BUILDING.md
+  - pickleglass_web/public/README.md
+  - All node_modules README.md files (thousands of them)
 
-**Existing files to be modified:**
-- `pickleglass_web/next.config.js` - Add middleware configuration and rewrites
-- `firebase.json` - Update hosting configuration for dynamic routes
-- `pickleglass_web/package.json` - Add Firebase Admin SDK dependency
-- `pickleglass_web/app/login/page.tsx` - Remove client-side redirect logic
-- `pickleglass_web/app/page.tsx` - Remove client-side authentication checks
-- `pickleglass_web/utils/auth.ts` - Simplify client-side auth to focus on UI state
+- **Deployment scripts:** deploy-fixed.bat, deploy-fixed.sh (these appear to be temporary fixes)
+
+- **Build artifacts and temporary files:**
+  - nul (empty file)
+  - pickleglass_web/nul (empty file)
+
+- **Unused configuration files:**
+  - .gitmodules (no active submodules being used)
+  - package.json.electron (appears to be unused based on main package.json)
+
+- **GitHub templates:** .github/ directory (ISSUE_TEMPLATE/, PULL_REQUEST_TEMPLATE.md)
+
+**Files to be preserved:**
+- implementation_plan.md (explicitly required)
+- All source code files (.js, .ts, .tsx)
+- All configuration files actively used (package.json, firebase.json, etc.)
+- All asset files and resources
+- All functional build and deployment files
 
 ## Functions
-Implement server-side authentication verification and route protection functions.
+No function modifications required.
 
-**New functions:**
-- `verifyAuthToken(token: string): Promise<VerifiedUser | null>` in `lib/firebase-admin.ts`
-- `getAuthFromRequest(request: NextRequest): Promise<ServerAuthContext>` in `lib/auth-middleware.ts`
-- `shouldProtectRoute(pathname: string): RouteConfig | null` in `lib/route-config.ts`
-- `handleAuthRedirect(request: NextRequest, config: RouteConfig): NextResponse` in `lib/auth-middleware.ts`
-
-**Modified functions:**
-- Update `useAuth()` in `utils/auth.ts` to remove redirect logic
-- Simplify authentication checks in page components
+This cleanup operation does not require changes to any existing functions. All application logic, services, and utilities will remain intact and functional.
 
 ## Classes
-No new classes required - using functional approach with Next.js middleware.
+No class modifications required.
 
-**Modified classes/components:**
-- `LoginPage` component - remove client-side redirect handling
-- `Home` component - remove authentication redirect logic
-- `ClientLayout` component - simplify to focus on UI state only
+All existing classes and their implementations will remain unchanged. The cleanup focuses solely on removing unused files without affecting the application's object-oriented structure.
 
 ## Dependencies
-Add Firebase Admin SDK for server-side authentication verification.
+No dependency changes required.
 
-```json
-{
-  "firebase-admin": "^12.0.0"
-}
-```
-
-Integration requirements:
-- Firebase Admin SDK requires service account credentials
-- Environment variables for Firebase Admin configuration
-- Next.js middleware configuration for route matching
+All package.json files and their dependencies will remain unchanged. The cleanup does not affect any npm packages, node_modules contents (except for removing README files within them), or dependency management.
 
 ## Testing
-Implement comprehensive testing for server-side route protection.
-
-**New test files:**
-- `pickleglass_web/__tests__/middleware.test.ts` - Test middleware route protection
-- `pickleglass_web/__tests__/firebase-admin.test.ts` - Test server-side auth verification
-
-**Modified test files:**
-- Update existing auth tests to focus on client-side UI state
-- Add integration tests for protected route access
+Verify application functionality after cleanup.
 
 **Testing approach:**
-- Unit tests for middleware functions
-- Integration tests for route protection
-- E2E tests for authentication flow with page refreshes
+- Verify the application starts correctly after file deletion
+- Confirm all core features remain functional
+- Ensure no broken file references exist
+- Test that implementation_plan.md is preserved and accessible
+
+**Validation steps:**
+1. Run the application to ensure it starts without errors
+2. Check that no code references the deleted files
+3. Verify that implementation_plan.md remains in the root directory
+4. Confirm that all essential configuration and source files are intact
 
 ## Implementation Order
-Implement changes in logical sequence to minimize conflicts and ensure successful integration.
+Execute cleanup in a safe, systematic order to minimize risk.
 
-1. **Setup Firebase Admin SDK** - Add dependency and configuration
-2. **Create middleware utilities** - Implement auth verification functions
-3. **Implement Next.js middleware** - Add route protection logic
-4. **Update Next.js configuration** - Configure middleware and rewrites
-5. **Update Firebase Hosting configuration** - Support dynamic routes
-6. **Simplify client-side components** - Remove redundant auth checks
-7. **Update authentication utilities** - Focus on UI state management
-8. **Add comprehensive testing** - Ensure route protection works correctly
-9. **Deploy and validate** - Test on Firebase Hosting with real scenarios
+1. **Backup verification**: Ensure implementation_plan.md exists and is preserved
+2. **Delete documentation files**: Remove all .md files except implementation_plan.md
+3. **Remove deployment scripts**: Delete deploy-fixed.bat and deploy-fixed.sh
+4. **Clean temporary files**: Remove nul files and other temporary artifacts
+5. **Remove GitHub templates**: Delete .github directory
+6. **Remove unused configs**: Delete .gitmodules and package.json.electron
+7. **Verification**: Test application startup and core functionality
+8. **Final validation**: Confirm implementation_plan.md is the only remaining .md file

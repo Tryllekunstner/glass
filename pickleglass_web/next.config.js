@@ -35,6 +35,9 @@ const nextConfig = {
     workerThreads: false, // Disable worker threads in containers
   },
 
+  // Force server-side rendering for all pages
+  output: 'standalone',
+
   // Compiler optimizations
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production' ? {

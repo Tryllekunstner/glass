@@ -1,25 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { UserProfile, setUserInfo, findOrCreateUser } from './api'
 import { auth as firebaseAuth } from './firebase'
 import { onAuthStateChanged, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile, sendPasswordResetEmail } from 'firebase/auth'
 import { useClientOnly } from '../hooks/useClientOnly'
-
-// Helper function to set auth token in cookies for middleware access
-const setAuthTokenCookie = async (user: FirebaseUser | null) => {
-  if (user) {
-    try {
-      const token = await user.getIdToken();
-      // Set cookie with auth token for middleware to access
-      document.cookie = `auth-token=${token}; path=/; max-age=3600; secure; samesite=strict`;
-    } catch (error) {
-      console.error('Failed to get ID token:', error);
-    }
-  } else {
-    // Clear auth token cookie
-    document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-  }
-};
 
 export interface AuthState {
   isAuthenticated: boolean;
@@ -29,6 +12,11 @@ export interface AuthState {
   isHydrated: boolean;
 }
 
+/**
+ * Simplified client-side authentication hook
+ * Server-side authentication handles route protection and redirects
+ * This hook only manages UI state and Firebase client authentication
+ */
 export const useAuth = () => {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -45,29 +33,48 @@ export const useAuth = () => {
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser: FirebaseUser | null) => {
       setError(null);
       
-      // Set auth token cookie for middleware access
-      await setAuthTokenCookie(firebaseUser);
-      
       if (firebaseUser) {
         console.log('🔥 Firebase user authenticated:', firebaseUser.uid);
         
-        let profile: UserProfile = {
-          uid: firebaseUser.uid,
-          display_name: firebaseUser.displayName || 'User',
-          email: firebaseUser.email || 'no-email@example.com',
-        };
-        
         try {
+          // Get fresh ID token for server-side authentication
+          const token = await firebaseUser.getIdToken(true);
+          
+          // Send token to server for session management
+          await fetch('/api/auth/session', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ token }),
+          });
+
+          let profile: UserProfile = {
+            uid: firebaseUser.uid,
+            display_name: firebaseUser.displayName || 'User',
+            email: firebaseUser.email || 'no-email@example.com',
+          };
+          
           profile = await findOrCreateUser(profile);
-          console.log('✅ Firestore user created/verified:', profile);
+          console.log('✅ User profile synchronized:', profile);
           setUser(profile);
           setUserInfo(profile);
         } catch (error) {
-          console.error('❌ Firestore user creation/verification failed:', error);
+          console.error('❌ User profile synchronization failed:', error);
           setError('Failed to initialize user profile');
         }
       } else {
         console.log('🚫 No authenticated user');
+        
+        // Clear server-side session
+        try {
+          await fetch('/api/auth/session', {
+            method: 'DELETE',
+          });
+        } catch (error) {
+          console.warn('Failed to clear server session:', error);
+        }
+        
         setUser(null);
         setUserInfo(null);
       }
@@ -92,12 +99,30 @@ export const useAuth = () => {
   }
 }
 
-
-// Authentication helper functions
+/**
+ * Sign in with email and password
+ * Server-side middleware will handle route protection and redirects
+ */
 export const signIn = async (email: string, password: string): Promise<UserProfile> => {
   try {
     const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
     const firebaseUser = userCredential.user;
+    
+    // Get ID token for server-side authentication
+    const token = await firebaseUser.getIdToken();
+    
+    // Create session on server
+    const sessionResponse = await fetch('/api/auth/session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ token }),
+    });
+
+    if (!sessionResponse.ok) {
+      throw new Error('Failed to create server session');
+    }
     
     const profile: UserProfile = {
       uid: firebaseUser.uid,
@@ -112,6 +137,9 @@ export const signIn = async (email: string, password: string): Promise<UserProfi
   }
 };
 
+/**
+ * Sign up with email, password, and display name
+ */
 export const signUp = async (email: string, password: string, displayName: string): Promise<UserProfile> => {
   try {
     const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
@@ -119,6 +147,22 @@ export const signUp = async (email: string, password: string, displayName: strin
     
     // Update the user's display name
     await updateProfile(firebaseUser, { displayName });
+    
+    // Get ID token for server-side authentication
+    const token = await firebaseUser.getIdToken();
+    
+    // Create session on server
+    const sessionResponse = await fetch('/api/auth/session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ token }),
+    });
+
+    if (!sessionResponse.ok) {
+      throw new Error('Failed to create server session');
+    }
     
     const profile: UserProfile = {
       uid: firebaseUser.uid,
@@ -133,16 +177,30 @@ export const signUp = async (email: string, password: string, displayName: strin
   }
 };
 
+/**
+ * Sign out user and clear server session
+ */
 export const signOutUser = async (): Promise<void> => {
   try {
+    // Clear server-side session first
+    await fetch('/api/auth/session', {
+      method: 'DELETE',
+    });
+    
+    // Then sign out from Firebase
     await signOut(firebaseAuth);
     setUserInfo(null);
+    
+    console.log('✅ User signed out successfully');
   } catch (error: any) {
     console.error('Sign out error:', error);
     throw new Error('Failed to sign out');
   }
 };
 
+/**
+ * Send password reset email
+ */
 export const resetPassword = async (email: string): Promise<void> => {
   try {
     await sendPasswordResetEmail(firebaseAuth, email);
@@ -150,6 +208,53 @@ export const resetPassword = async (email: string): Promise<void> => {
   } catch (error: any) {
     console.error('Password reset error:', error);
     throw new Error(getAuthErrorMessage(error.code));
+  }
+};
+
+/**
+ * Refresh authentication token
+ * Called when server indicates token refresh is needed
+ */
+export const refreshAuthToken = async (): Promise<void> => {
+  try {
+    const currentUser = firebaseAuth.currentUser;
+    if (!currentUser) {
+      throw new Error('No authenticated user');
+    }
+
+    // Force token refresh
+    const token = await currentUser.getIdToken(true);
+    
+    // Update server session with new token
+    const response = await fetch('/api/auth/session', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ token }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to refresh server session');
+    }
+
+    console.log('✅ Authentication token refreshed');
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check if user needs to refresh their token
+ * This can be called when server returns X-Token-Refresh-Required header
+ */
+export const handleTokenRefreshRequired = async (): Promise<void> => {
+  try {
+    await refreshAuthToken();
+  } catch (error) {
+    console.error('Failed to refresh token, signing out user:', error);
+    await signOutUser();
   }
 };
 
