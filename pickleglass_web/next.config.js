@@ -35,8 +35,8 @@ const nextConfig = {
     workerThreads: false, // Disable worker threads in containers
   },
 
-  // Force server-side rendering for all pages
-  output: 'standalone',
+  // Use custom server instead of standalone
+  // output: 'standalone', // Disabled for custom Express server
 
   // Compiler optimizations
   compiler: {

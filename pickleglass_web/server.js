@@ -143,8 +143,14 @@ async function startServer() {
     // Authentication middleware (this is the key integration)
     server.use(authenticateRequest);
 
-    // Handle all other requests with Next.js
-    server.use((req, res) => {
+    // Handle all other requests with Next.js (using middleware approach)
+    server.use((req, res, next) => {
+      // Skip if response already sent
+      if (res.headersSent) {
+        return next();
+      }
+      
+      // Let Next.js handle the request
       return handle(req, res);
     });
 
