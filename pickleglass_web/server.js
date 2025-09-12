@@ -37,11 +37,20 @@ async function startServer() {
   try {
     console.log(`[${new Date().toISOString()}] Starting Next.js server with authentication...`);
     
+    // Run startup health checks
+    const { runStartupValidation } = require('./server/utils/startup-health');
+    const healthResults = await runStartupValidation();
+    
+    if (!healthResults.healthy) {
+      console.warn('⚠️  Some startup checks failed, but continuing with server startup...');
+    }
+    
     // Prepare the Next.js app with timeout
+    const timeoutMs = parseInt(process.env.STARTUP_TIMEOUT, 10) || 60000;
     const prepareTimeout = setTimeout(() => {
-      console.error('Next.js app preparation timed out after 60 seconds');
+      console.error(`Next.js app preparation timed out after ${timeoutMs}ms`);
       process.exit(1);
-    }, 60000);
+    }, timeoutMs);
     
     await app.prepare();
     clearTimeout(prepareTimeout);
@@ -104,7 +113,7 @@ async function startServer() {
     server.use(authenticateRequest);
 
     // Handle all other requests with Next.js
-    server.all('*', (req, res) => {
+    server.use((req, res) => {
       return handle(req, res);
     });
 

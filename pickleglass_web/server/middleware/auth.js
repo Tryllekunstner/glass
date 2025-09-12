@@ -54,25 +54,98 @@ async function authenticateRequest(req, res, next) {
         return; // Rate limit middleware handles the response
       }
 
-      // Continue with authentication
-      performAuthentication(req, res, next, startTime);
+      // Continue with authentication (with fallback)
+      performAuthenticationWithFallback(req, res, next, startTime);
     });
 
   } catch (error) {
     console.error('🔒 Authentication middleware error:', error);
     logAuthEvent('middleware_error', req, null, { error: error.message });
     
-    // For API requests, return JSON error
-    if (isApiRequest(req)) {
-      return res.status(500).json({
-        error: 'Authentication service error',
-        message: 'Please try again later',
+    // Use fallback authentication
+    return createFallbackAuthMiddleware()(req, res, next);
+  }
+}
+
+/**
+ * Perform authentication with fallback support
+ */
+async function performAuthenticationWithFallback(req, res, next, startTime) {
+  try {
+    await performAuthentication(req, res, next, startTime);
+  } catch (error) {
+    console.error('🔒 Authentication failed, using fallback:', error);
+    logAuthEvent('auth_fallback_triggered', req, null, { error: error.message });
+    
+    // Use fallback middleware
+    return createFallbackAuthMiddleware()(req, res, next);
+  }
+}
+
+/**
+ * Create fallback authentication middleware when Firebase Admin fails
+ * @returns {Function} Fallback middleware function
+ */
+function createFallbackAuthMiddleware() {
+  return (req, res, next) => {
+    console.warn('⚠️  Using fallback authentication middleware');
+    
+    // Create minimal auth context
+    req.auth = {
+      user: null,
+      isAuthenticated: false,
+      token: null,
+      fallback: true,
+    };
+    req.user = null;
+
+    // Check route protection with fallback behavior
+    const routeConfig = shouldProtectRoute(req.path);
+    
+    if (routeConfig) {
+      // Route requires authentication but we can't verify
+      logAuthEvent('fallback_access_denied', req, null, { 
+        reason: 'authentication_service_unavailable',
+        path: req.path 
       });
+
+      if (isApiRequest(req)) {
+        return res.status(503).json({
+          error: 'Authentication service temporarily unavailable',
+          message: 'Please try again later',
+          fallback: true,
+        });
+      }
+
+      // For browser requests, redirect to a maintenance page or login
+      return res.status(503).send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Service Temporarily Unavailable</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 40px; text-align: center; }
+              .error { background: #f8f8f8; padding: 20px; border-radius: 5px; max-width: 500px; margin: 0 auto; }
+              .retry { margin-top: 20px; }
+              button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+            </style>
+          </head>
+          <body>
+            <div class="error">
+              <h1>Service Temporarily Unavailable</h1>
+              <p>The authentication service is temporarily unavailable. Please try again in a few moments.</p>
+              <div class="retry">
+                <button onclick="window.location.reload()">Retry</button>
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
     }
 
-    // For browser requests, allow through but log the error
+    // Public route, continue
     next();
-  }
+  };
 }
 
 /**

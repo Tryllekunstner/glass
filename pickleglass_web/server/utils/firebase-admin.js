@@ -12,30 +12,46 @@ class AuthenticationService {
   }
 
   /**
-   * Initialize Firebase Admin SDK (lazy initialization)
+   * Initialize Firebase Admin SDK (lazy initialization with App Hosting support)
    */
   initialize() {
     if (this.initialized) {
       return;
     }
+
     try {
       if (getApps().length === 0) {
         const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
         
         if (!projectId) {
-          throw new Error('NEXT_PUBLIC_FIREBASE_PROJECT_ID is required for server authentication');
+          console.warn('⚠️  NEXT_PUBLIC_FIREBASE_PROJECT_ID not found, Firebase Admin SDK will not be initialized');
+          this.initialized = false;
+          return;
         }
 
-        // Check if we're running in Firebase App Hosting or have service account credentials
+        // Detect environment type
+        const isAppHosting = this.isAppHostingEnvironment();
+        const isLocalDev = process.env.NODE_ENV !== 'production';
+
+        console.log(`🔧 Initializing Firebase Admin SDK (${isAppHosting ? 'App Hosting' : isLocalDev ? 'Local Dev' : 'Production'})`);
+
         if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
           // Use service account key for local development
+          console.log('🔑 Using service account key for authentication');
           const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
           initializeApp({
             credential: cert(serviceAccount),
             projectId,
           });
+        } else if (isAppHosting) {
+          // Use default credentials in App Hosting (automatic service account)
+          console.log('🏠 Using App Hosting default credentials');
+          initializeApp({
+            projectId,
+          });
         } else {
-          // Use default credentials (works in Firebase App Hosting and Google Cloud environments)
+          // Fallback for other production environments
+          console.log('☁️  Using default application credentials');
           initializeApp({
             projectId,
           });
@@ -44,11 +60,31 @@ class AuthenticationService {
 
       this.adminAuth = getAuth();
       this.initialized = true;
-      console.log('✅ Firebase Admin SDK initialized for server authentication');
+      console.log('✅ Firebase Admin SDK initialized successfully');
+      
     } catch (error) {
       console.error('❌ Failed to initialize Firebase Admin SDK:', error);
+      
+      // In App Hosting, we want to be more resilient to auth failures
+      if (this.isAppHostingEnvironment()) {
+        console.warn('⚠️  Continuing without Firebase Admin SDK in App Hosting environment');
+        this.initialized = false; // Mark as not initialized but don't throw
+        return;
+      }
+      
       throw error;
     }
+  }
+
+  /**
+   * Check if running in Firebase App Hosting environment
+   * @returns {boolean} True if in App Hosting
+   */
+  isAppHostingEnvironment() {
+    return process.env.FIREBASE_APP_HOSTING === 'true' ||
+           process.env.GOOGLE_CLOUD_PROJECT ||
+           process.env.GCLOUD_PROJECT ||
+           process.env.K_SERVICE; // Cloud Run service indicator
   }
 
   /**

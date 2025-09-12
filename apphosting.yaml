@@ -10,6 +10,12 @@ runConfig:
       value: "8080"
     - variable: NODE_ENV
       value: "production"
+    - variable: FIREBASE_APP_HOSTING
+      value: "true"
+    - variable: STARTUP_TIMEOUT
+      value: "60000"
+    - variable: AUTH_INITIALIZATION_TIMEOUT
+      value: "30000"
 
 # Build configuration - redirect to web directory
 buildConfig:
