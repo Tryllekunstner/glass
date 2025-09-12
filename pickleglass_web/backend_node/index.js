@@ -6,7 +6,7 @@ const { identifyUser } = require('./middleware/auth');
 function createApp(eventBridge) {
     const app = express();
 
-    const webUrl = process.env.pickleglass_WEB_URL || 'http://localhost:3000';
+    const webUrl = process.env.pickleglass_WEB_URL || `http://localhost:${process.env.PORT || 8080}`;
     console.log(`🔧 Backend CORS configured for: ${webUrl}`);
 
     app.use(cors({

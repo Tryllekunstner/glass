@@ -3,10 +3,18 @@ node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
 # Testing
 coverage
 .nyc_output
+__tests__/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+jest.config.js
+jest.setup.js
 
 # Next.js
 .next/
@@ -24,11 +32,13 @@ build
 
 # Local env files
 .env*.local
+.env.development
+.env.test
 
 # Vercel
 .vercel
 
-# Electron build artifacts
+# Electron build artifacts (not needed in web container)
 dist/
 *.snap
 *.AppImage
@@ -38,6 +48,44 @@ dist/
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
 
 # OS
 Thumbs.db
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitmodules
+
+# Documentation
+README.md
+*.md
+docs/
+
+# Docker
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Linting and formatting
+.eslintrc*
+.prettierrc*
+.prettierignore
+
+# TypeScript
+tsconfig.json
+
+# Tailwind
+tailwind.config.js
+postcss.config.js
+
+# Development only files
+requirements.txt
+nul

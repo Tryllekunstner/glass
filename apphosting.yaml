@@ -1,20 +1,23 @@
-# Firebase App Hosting configuration
+# Firebase App Hosting configuration with Dockerfile-based build
 runConfig:
-  # Use Node.js 20 for better compatibility
-  runtime: nodejs20
-  # Start the custom Next.js server that handles PORT environment variable
-  startCommand: cd pickleglass_web && npm start
-  # Set the port that the container should listen on
+  # Use custom Dockerfile for containerized deployment
+  cpu: 1
+  memory: 1Gi
+  maxInstances: 10
+  minInstances: 0
+  concurrency: 80
+  # Environment variables for Cloud Run
   env:
     - variable: PORT
       value: "8080"
     - variable: NODE_ENV
       value: "production"
+    - variable: HOSTNAME
+      value: "0.0.0.0"
 
-# Build configuration
+# Build configuration using Dockerfile
 buildConfig:
-  # Only install and build the web application, skip root dependencies
-  commands:
-    - cd pickleglass_web && npm ci
-    - cd pickleglass_web && npm run build
-    - cd pickleglass_web && npm prune --production
+  # Use the Dockerfile in the pickleglass_web directory
+  dockerfilePath: pickleglass_web/Dockerfile
+  # Set the build context to the pickleglass_web directory
+  dockerBuildContext: pickleglass_web
