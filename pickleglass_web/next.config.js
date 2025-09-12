@@ -2,6 +2,11 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  
+  // Explicitly disable static export - ensure server-side rendering only
+  trailingSlash: false,
+  
+  // Image optimization settings for server-side rendering
   images: { 
     unoptimized: true,
     formats: ['image/webp', 'image/avif']
@@ -50,29 +55,32 @@ const nextConfig = {
     return config;
   },
 
-  // Note: Headers are disabled for static export mode
-  // Headers for better caching (only works with server-side rendering)
-  // async headers() {
-  //   return [
-  //     {
-  //       source: '/(.*)',
-  //       headers: [
-  //         {
-  //           key: 'X-Content-Type-Options',
-  //           value: 'nosniff',
-  //         },
-  //         {
-  //           key: 'X-Frame-Options',
-  //           value: 'DENY',
-  //         },
-  //         {
-  //           key: 'X-XSS-Protection',
-  //           value: '1; mode=block',
-  //         },
-  //       ],
-  //     },
-  //   ];
-  // },
+  // Security headers for server-side rendering
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+        ],
+      },
+    ];
+  },
 }
 
 module.exports = nextConfig

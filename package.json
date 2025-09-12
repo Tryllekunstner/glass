@@ -19,9 +19,10 @@
         "build:web": "cd pickleglass_web && npm run build && cd ..",
         "build:all": "npm run build:renderer && npm run build:web",
         "build:firebase": "npm run install:web && npm run build:web",
-        "deploy:firebase": "npm run build:firebase && firebase deploy",
-        "serve:firebase": "npm run build:firebase && firebase serve",
+        "deploy:apphosting": "npm run build:firebase && firebase apphosting:deploy",
+        "serve:firebase": "npm run build:firebase && firebase serve --only functions,firestore",
         "validate:deployment": "node validate-deployment.js",
+        "validate:serverside": "node server-side-validation.js",
         "watch:renderer": "node build.js --watch"
     },
     "keywords": [
