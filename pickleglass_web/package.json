@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "node server.js",
+    "start": "node test-server.js",
     "start:next": "next start",
+    "start:full": "node server.js",
     "start:container": "node docker-entrypoint.sh node server.js",
     "healthcheck": "node healthcheck.js",
     "lint": "next lint",

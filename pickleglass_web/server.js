@@ -20,9 +20,6 @@ const app = next({
   port,
   // Disable file watching in production for better performance
   conf: dev ? {} : { 
-    experimental: { 
-      isrMemoryCacheSize: 0 
-    },
     // Ensure we're in the correct directory
     dir: __dirname
   }

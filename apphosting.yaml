@@ -18,3 +18,4 @@ buildConfig:
     - npm ci
     - npm run build
     - npm prune --production
+  startCommand: npm start
