@@ -13,7 +13,6 @@ runConfig:
 
 # Build configuration - build only the web app, not Electron
 buildConfig:
-  rootDirectory: pickleglass_web
   commands:
     - npm ci
     - npm run build
