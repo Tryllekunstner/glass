@@ -1,78 +1,124 @@
 # Implementation Plan
 
-## Overview
-Convert the Next.js application to be fully server-side rendered only, removing all static page generation capabilities and ensuring proper Firebase App Hosting deployment.
+Fix login page refresh issue caused by client-side hydration problems with window object access.
 
-The current setup has mixed configurations between static hosting (firebase.json pointing to /out directory) and server-side hosting (apphosting.yaml for server rendering). This implementation will clean up the configuration to use Firebase App Hosting exclusively for server-side rendering, removing all static generation capabilities and ensuring the application runs entirely on the server.
+The login page currently fails to render properly on refresh due to server-side rendering (SSR) and client-side rendering (CSR) mismatches. The root cause is improper handling of browser-only APIs like `window.location.search` during the hydration process. This creates inconsistencies between what the server renders and what the client expects, resulting in a blank page on refresh.
 
-## Types
-No new type definitions required for this implementation.
+## [Overview]
 
-The existing TypeScript configuration and component types will remain unchanged as this is primarily a configuration and deployment setup change.
+Resolve SSR/CSR hydration mismatches in the login page by implementing proper Next.js patterns for client-side only code.
 
-## Files
-Configuration and deployment file modifications to ensure server-side only rendering.
+The issue stems from accessing `window.location.search` in a `useEffect` hook before proper hydration is complete. This causes React hydration errors where the server-rendered content doesn't match the client-rendered content, leading to blank pages on refresh. The solution involves implementing proper client-side detection patterns, using Next.js router for URL parameter handling, and ensuring all browser-specific code runs only after hydration is complete.
 
-**Files to be modified:**
-- `firebase.json` - Remove hosting configuration that points to static /out directory
-- `pickleglass_web/next.config.js` - Add explicit server-side configuration and remove any static export settings
-- `apphosting.yaml` - Ensure proper server-side configuration
-- `pickleglass_web/package.json` - Update build scripts to avoid static generation
-- `package.json` (root) - Update deployment scripts for App Hosting only
+## [Types]
 
-**Files to be created:**
-- `server-side-validation.js` - Script to validate server-side only configuration
-- `DEPLOYMENT_GUIDE.md` - Updated deployment guide for App Hosting only
+Define TypeScript interfaces for improved type safety and hydration state management.
 
-**Files to be removed/cleaned:**
-- Any references to static export in build scripts
-- Remove /out directory references from Firebase configuration
+```typescript
+interface HydrationState {
+  isHydrated: boolean;
+  isElectronMode: boolean;
+  urlParams: URLSearchParams | null;
+}
 
-## Functions
-Build and deployment script modifications to ensure server-side rendering.
+interface ClientOnlyProps {
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}
 
-**New functions:**
-- `validateServerSideConfig()` in `server-side-validation.js` - Validates that no static generation is configured
-- `checkForStaticExports()` in validation script - Scans for any static export configurations
+interface UseClientOnlyReturn {
+  isClient: boolean;
+  isHydrated: boolean;
+}
+```
 
-**Modified functions:**
-- Update build scripts in `package.json` to use `next build` without static export
-- Modify deployment scripts to use Firebase App Hosting commands only
+## [Files]
 
-## Classes
+Modify existing files and create new utilities for proper client-side handling.
+
+**Modified Files:**
+- `pickleglass_web/app/login/page.tsx` - Replace window object access with proper Next.js patterns
+- `pickleglass_web/utils/auth.ts` - Add client-side detection utilities
+- `pickleglass_web/components/ClientLayout.tsx` - Ensure proper hydration handling
+
+**New Files:**
+- `pickleglass_web/hooks/useClientOnly.ts` - Custom hook for client-side detection
+- `pickleglass_web/components/ClientOnly.tsx` - Component wrapper for client-side only content
+- `pickleglass_web/utils/clientUtils.ts` - Utilities for safe client-side operations
+
+## [Functions]
+
+Implement new functions and modify existing ones for proper hydration handling.
+
+**New Functions:**
+- `useClientOnly()` in `hooks/useClientOnly.ts` - Hook to detect client-side rendering state
+- `ClientOnly()` in `components/ClientOnly.tsx` - Component to wrap client-side only content
+- `getUrlParams()` in `utils/clientUtils.ts` - Safe URL parameter extraction
+- `isElectronEnvironment()` in `utils/clientUtils.ts` - Safe Electron detection
+
+**Modified Functions:**
+- `LoginPage()` in `app/login/page.tsx` - Replace direct window access with safe alternatives
+- `useAuth()` in `utils/auth.ts` - Add hydration state management
+- `ClientLayout()` in `components/ClientLayout.tsx` - Ensure proper mounting sequence
+
+## [Classes]
+
 No new classes required for this implementation.
 
-The existing React components and utility classes will remain unchanged as this is a configuration-focused change.
+The solution focuses on functional components and hooks following React best practices. All hydration-related logic will be implemented using custom hooks and utility functions rather than class-based components.
 
-## Dependencies
-Update deployment and build dependencies to support server-side only rendering.
+## [Dependencies]
 
-**Dependencies to verify/update:**
-- Ensure `next` version supports App Router with server-side rendering
-- Verify `firebase-tools` supports App Hosting deployment
-- Check that all existing dependencies are compatible with server-side rendering
+No new external dependencies required.
 
-**No new dependencies required** - this is primarily a configuration change.
+The implementation uses existing Next.js and React patterns without requiring additional packages. All solutions leverage built-in Next.js router functionality and React hooks that are already available in the project.
 
-## Testing
-Validation and testing approach for server-side only deployment.
+## [Testing]
 
-**Test modifications:**
-- Update existing tests to work with server-side rendering
-- Add validation tests to ensure no static pages are generated
-- Test Firebase App Hosting deployment process
+Comprehensive testing approach for hydration fixes.
 
-**New test files:**
-- `pickleglass_web/__tests__/server-side-validation.test.ts` - Tests to ensure server-side only configuration
+**Test Files to Create:**
+- `pickleglass_web/__tests__/hydration.test.ts` - Test hydration behavior
+- `pickleglass_web/__tests__/clientOnly.test.ts` - Test client-only components
 
-## Implementation Order
-Step-by-step implementation sequence to ensure successful conversion.
+**Existing Test Modifications:**
+- Update `pickleglass_web/__tests__/auth-flow.test.ts` - Add hydration scenarios
+- Enhance `pickleglass_web/__tests__/firebase.test.ts` - Test SSR compatibility
 
-1. **Clean up Firebase configuration** - Remove static hosting configuration from firebase.json
-2. **Update Next.js configuration** - Ensure next.config.js is configured for server-side only
-3. **Verify App Hosting configuration** - Ensure apphosting.yaml is properly configured
-4. **Update build scripts** - Modify package.json scripts to avoid static generation
-5. **Create validation scripts** - Add server-side validation tools
-6. **Update deployment process** - Ensure deployment uses App Hosting only
-7. **Test server-side rendering** - Validate that all pages render server-side
-8. **Create deployment documentation** - Document the server-side only deployment process
+**Manual Testing Strategy:**
+- Test page refresh on `/login` route
+- Verify Electron mode detection works correctly
+- Confirm no hydration warnings in console
+- Test with JavaScript disabled (graceful degradation)
+
+## [Implementation Order]
+
+Sequential implementation steps to minimize conflicts and ensure successful integration.
+
+1. **Create Client-Side Detection Utilities**
+   - Implement `hooks/useClientOnly.ts`
+   - Create `components/ClientOnly.tsx`
+   - Add `utils/clientUtils.ts`
+
+2. **Update Authentication Utilities**
+   - Modify `utils/auth.ts` to handle hydration state
+   - Add client-side detection to auth hooks
+
+3. **Fix Login Page Implementation**
+   - Replace window object access in `app/login/page.tsx`
+   - Implement proper URL parameter handling
+   - Add loading states for hydration
+
+4. **Update Layout Components**
+   - Ensure `components/ClientLayout.tsx` handles hydration properly
+   - Add fallback states for server-side rendering
+
+5. **Implement Testing**
+   - Create hydration-specific tests
+   - Update existing auth flow tests
+   - Add manual testing procedures
+
+6. **Validation and Cleanup**
+   - Test all scenarios (refresh, direct navigation, Electron mode)
+   - Remove any remaining direct window object access
+   - Verify no hydration warnings in console

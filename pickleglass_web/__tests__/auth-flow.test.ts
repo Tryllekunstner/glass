@@ -25,19 +25,48 @@ Object.defineProperty(window, 'navigator', {
 });
 
 describe('Authentication State Management', () => {
-  test('should have proper AuthState interface structure', () => {
-    // Test that the AuthState interface has the expected properties
+  test('should have proper AuthState interface structure with hydration state', () => {
+    // Test that the AuthState interface has the expected properties including hydration
     const mockAuthState = {
       isAuthenticated: false,
       user: null,
       isLoading: true,
-      showSidebar: false
+      showSidebar: false,
+      isHydrated: false
     };
     
     expect(mockAuthState).toHaveProperty('isAuthenticated');
     expect(mockAuthState).toHaveProperty('user');
     expect(mockAuthState).toHaveProperty('isLoading');
     expect(mockAuthState).toHaveProperty('showSidebar');
+    expect(mockAuthState).toHaveProperty('isHydrated');
+  });
+
+  test('should handle hydration state properly', () => {
+    const preHydrationState = {
+      isAuthenticated: false,
+      user: null,
+      isLoading: true,
+      showSidebar: false,
+      isHydrated: false
+    };
+
+    const postHydrationState = {
+      isAuthenticated: true,
+      user: {
+        uid: 'test-uid',
+        display_name: 'Test User',
+        email: 'test@example.com'
+      },
+      isLoading: false,
+      showSidebar: true,
+      isHydrated: true
+    };
+    
+    expect(preHydrationState.isHydrated).toBe(false);
+    expect(preHydrationState.showSidebar).toBe(false);
+    expect(postHydrationState.isHydrated).toBe(true);
+    expect(postHydrationState.showSidebar).toBe(true);
   });
 
   test('sidebar should be hidden when user is not authenticated', () => {

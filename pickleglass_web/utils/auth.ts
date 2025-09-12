@@ -3,12 +3,14 @@ import { useRouter } from 'next/navigation'
 import { UserProfile, setUserInfo, findOrCreateUser } from './api'
 import { auth as firebaseAuth } from './firebase'
 import { onAuthStateChanged, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile, sendPasswordResetEmail } from 'firebase/auth'
+import { useClientOnly } from '../hooks/useClientOnly'
 
 export interface AuthState {
   isAuthenticated: boolean;
   user: UserProfile | null;
   isLoading: boolean;
   showSidebar: boolean;
+  isHydrated: boolean;
 }
 
 export const useAuth = () => {
@@ -16,8 +18,14 @@ export const useAuth = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(false)
+  const { isHydrated } = useClientOnly()
   
   useEffect(() => {
+    // Only set up auth listener after hydration is complete
+    if (!isHydrated) {
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser: FirebaseUser | null) => {
       setError(null);
       
@@ -48,19 +56,20 @@ export const useAuth = () => {
     });
 
     return () => unsubscribe();
-  }, [])
+  }, [isHydrated])
 
-  // Update sidebar visibility based on authentication state
+  // Update sidebar visibility based on authentication state and hydration
   useEffect(() => {
-    setShowSidebar(!!user && !isLoading);
-  }, [user, isLoading]);
+    setShowSidebar(!!user && !isLoading && isHydrated);
+  }, [user, isLoading, isHydrated]);
 
   return { 
     user, 
     isLoading, 
     error, 
     showSidebar,
-    isAuthenticated: !!user 
+    isAuthenticated: !!user,
+    isHydrated
   }
 }
 
