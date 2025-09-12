@@ -11,10 +11,10 @@ runConfig:
     - variable: NODE_ENV
       value: "production"
 
-# Build configuration - build only the web app, not Electron
+# Build configuration - redirect to web directory
 buildConfig:
   commands:
-    - npm ci
-    - npm run build
-    - npm prune --production
-  startCommand: npm start
+    - cd pickleglass_web && npm ci
+    - cd pickleglass_web && npm run build
+    - cd pickleglass_web && npm prune --production
+  startCommand: cd pickleglass_web && npm start
