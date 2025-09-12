@@ -1,6 +1,9 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+
+// Force dynamic rendering - disable static generation
+export const dynamic = 'force-dynamic'
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { auth } from '@/utils/firebase'
 import { Chrome, Shield, Mail } from 'lucide-react'

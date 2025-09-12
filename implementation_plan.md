@@ -1,57 +1,78 @@
 # Implementation Plan
 
 ## Overview
-Fix white text on white background issue in email/password login form input fields by adding explicit text color classes and handling browser autofill styling.
+Convert the Next.js application to be fully server-side rendered only, removing all static page generation capabilities and ensuring proper Firebase App Hosting deployment.
 
-The issue occurs in light mode where input fields in the EmailPasswordForm component lack explicit text color styling, causing white text to appear on white backgrounds. This makes the form unusable as users cannot see what they're typing. The solution involves adding explicit text color classes to all input fields and ensuring proper contrast in all states including browser autofill scenarios.
+The current setup has mixed configurations between static hosting (firebase.json pointing to /out directory) and server-side hosting (apphosting.yaml for server rendering). This implementation will clean up the configuration to use Firebase App Hosting exclusively for server-side rendering, removing all static generation capabilities and ensuring the application runs entirely on the server.
 
 ## Types
-No new type definitions required for this styling fix.
+No new type definitions required for this implementation.
 
-The existing TypeScript interfaces and types in the EmailPasswordForm component (LoginFormData, SignupFormData, EmailPasswordFormProps) remain unchanged as this is purely a CSS styling issue.
+The existing TypeScript configuration and component types will remain unchanged as this is primarily a configuration and deployment setup change.
 
 ## Files
-Modify existing component file to add explicit text styling classes.
+Configuration and deployment file modifications to ensure server-side only rendering.
 
 **Files to be modified:**
-- `pickleglass_web/components/EmailPasswordForm.tsx` - Add explicit text color classes to all input elements
-- `pickleglass_web/app/globals.css` - Add CSS rules to handle browser autofill styling and ensure proper text contrast
+- `firebase.json` - Remove hosting configuration that points to static /out directory
+- `pickleglass_web/next.config.js` - Add explicit server-side configuration and remove any static export settings
+- `apphosting.yaml` - Ensure proper server-side configuration
+- `pickleglass_web/package.json` - Update build scripts to avoid static generation
+- `package.json` (root) - Update deployment scripts for App Hosting only
 
-**No new files needed** - This is a styling fix for existing components.
+**Files to be created:**
+- `server-side-validation.js` - Script to validate server-side only configuration
+- `DEPLOYMENT_GUIDE.md` - Updated deployment guide for App Hosting only
+
+**Files to be removed/cleaned:**
+- Any references to static export in build scripts
+- Remove /out directory references from Firebase configuration
 
 ## Functions
-No function signature changes required for this styling fix.
+Build and deployment script modifications to ensure server-side rendering.
 
-The existing functions in EmailPasswordForm.tsx (handleLoginSubmit, handleSignupSubmit, toggleMode) remain unchanged. Only the JSX className attributes for input elements will be modified to include explicit text color classes.
+**New functions:**
+- `validateServerSideConfig()` in `server-side-validation.js` - Validates that no static generation is configured
+- `checkForStaticExports()` in validation script - Scans for any static export configurations
+
+**Modified functions:**
+- Update build scripts in `package.json` to use `next build` without static export
+- Modify deployment scripts to use Firebase App Hosting commands only
 
 ## Classes
-No new classes or class modifications required for this styling fix.
+No new classes required for this implementation.
 
-The existing React functional component structure remains the same. Only the className props on input elements will be updated to include explicit text color styling.
+The existing React components and utility classes will remain unchanged as this is a configuration-focused change.
 
 ## Dependencies
-No new dependencies required for this styling fix.
+Update deployment and build dependencies to support server-side only rendering.
 
-The existing dependencies (React, Tailwind CSS, Lucide React icons) are sufficient. The fix uses existing Tailwind utility classes for text colors.
+**Dependencies to verify/update:**
+- Ensure `next` version supports App Router with server-side rendering
+- Verify `firebase-tools` supports App Hosting deployment
+- Check that all existing dependencies are compatible with server-side rendering
+
+**No new dependencies required** - this is primarily a configuration change.
 
 ## Testing
-Manual testing approach to verify text visibility in form inputs.
+Validation and testing approach for server-side only deployment.
 
-**Testing requirements:**
-- Test email and password input fields in both login and signup modes
-- Verify text is visible when typing manually
-- Test browser autofill scenarios to ensure text remains visible
-- Check placeholder text visibility
-- Verify error state styling still works correctly
-- Test focus states and hover states
+**Test modifications:**
+- Update existing tests to work with server-side rendering
+- Add validation tests to ensure no static pages are generated
+- Test Firebase App Hosting deployment process
 
-**No automated tests needed** - This is a visual styling fix that requires manual verification.
+**New test files:**
+- `pickleglass_web/__tests__/server-side-validation.test.ts` - Tests to ensure server-side only configuration
 
 ## Implementation Order
-Sequential styling fixes to ensure consistent text visibility across all form inputs.
+Step-by-step implementation sequence to ensure successful conversion.
 
-1. **Add explicit text color classes to login form inputs** - Update email and password input fields in the login section with `text-gray-900` class
-2. **Add explicit text color classes to signup form inputs** - Update display name, email, password, and confirm password fields in signup section with `text-gray-900` class  
-3. **Add browser autofill CSS rules** - Add CSS rules in globals.css to handle browser autofill styling and ensure text remains visible
-4. **Test all input states** - Manually verify text visibility in normal, focus, error, and autofill states
-5. **Verify form functionality** - Ensure all form interactions still work correctly after styling changes
+1. **Clean up Firebase configuration** - Remove static hosting configuration from firebase.json
+2. **Update Next.js configuration** - Ensure next.config.js is configured for server-side only
+3. **Verify App Hosting configuration** - Ensure apphosting.yaml is properly configured
+4. **Update build scripts** - Modify package.json scripts to avoid static generation
+5. **Create validation scripts** - Add server-side validation tools
+6. **Update deployment process** - Ensure deployment uses App Hosting only
+7. **Test server-side rendering** - Validate that all pages render server-side
+8. **Create deployment documentation** - Document the server-side only deployment process

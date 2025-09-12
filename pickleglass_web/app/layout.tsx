@@ -3,6 +3,9 @@ import { Inter } from 'next/font/google'
 import ClientLayout from '@/components/ClientLayout'
 import { getBrandConfig } from '@/config/brand'
 
+// Force dynamic rendering for the entire app - disable static generation
+export const dynamic = 'force-dynamic'
+
 const inter = Inter({ subsets: ['latin'] })
 const brandConfig = getBrandConfig()
 

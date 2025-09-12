@@ -2,8 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  // Removed 'output: export' to enable server-side rendering for App Hosting
-
   images: { 
     unoptimized: true,
     formats: ['image/webp', 'image/avif']
