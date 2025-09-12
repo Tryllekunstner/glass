@@ -17,3 +17,4 @@ buildConfig:
   commands:
     - cd pickleglass_web && npm ci
     - cd pickleglass_web && npm run build
+    - cd pickleglass_web && npm prune --production

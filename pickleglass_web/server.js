@@ -4,7 +4,7 @@ const next = require('next');
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = '0.0.0.0'; // Listen on all interfaces for Cloud Run
-const port = parseInt(process.env.PORT, 10) || 3000;
+const port = parseInt(process.env.PORT, 10) || 8080;
 
 console.log('=== Next.js Server Startup ===');
 console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
@@ -22,7 +22,9 @@ const app = next({
   conf: dev ? {} : { 
     experimental: { 
       isrMemoryCacheSize: 0 
-    } 
+    },
+    // Ensure we're in the correct directory
+    dir: __dirname
   }
 });
 const handle = app.getRequestHandler();
