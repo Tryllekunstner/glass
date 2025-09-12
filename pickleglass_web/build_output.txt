@@ -1,0 +1,44 @@
+
+> pickleglass-frontend@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.32
+  - Environments: .env.local, .env.production
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/17) ...
+   Generating static pages (4/17) 
+   Generating static pages (8/17) 
+   Generating static pages (12/17) 
+ ✓ Generating static pages (17/17)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                             Size     First Load JS
+┌ ƒ /                                   2.56 kB         312 kB
+├ ƒ /_not-found                         185 B           191 kB
+├ ƒ /activity                           2.61 kB         309 kB
+├ ƒ /activity/details                   3.17 kB         309 kB
+├ ƒ /api/auth/session                   0 B                0 B
+├ ƒ /api/auth/verify                    0 B                0 B
+├ ƒ /api/config-debug                   0 B                0 B
+├ ƒ /download                           2.37 kB         312 kB
+├ ƒ /help                               2.53 kB         312 kB
+├ ƒ /login                              5.49 kB         315 kB
+├ ƒ /personalize                        2.05 kB         311 kB
+├ ƒ /profiles                           4.96 kB         314 kB
+├ ƒ /settings                           4.03 kB         313 kB
+├ ƒ /settings/billing                   2 kB            308 kB
+└ ƒ /settings/privacy                   2.29 kB         311 kB
++ First Load JS shared by all           191 kB
+  └ chunks/vendors-4e2d4d91e9213155.js  189 kB
+  └ other shared chunks (total)         1.95 kB
+
+
+ƒ Middleware                            25.7 kB
+
+ƒ  (Dynamic)  server-rendered on demand
+

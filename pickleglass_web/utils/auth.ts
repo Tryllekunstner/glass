@@ -258,6 +258,26 @@ export const handleTokenRefreshRequired = async (): Promise<void> => {
   }
 };
 
+/**
+ * Hook for protected pages that require authentication
+ * Redirects to login if user is not authenticated
+ * Returns user profile if authenticated, null if loading
+ */
+export const useRedirectIfNotAuth = (): UserProfile | null => {
+  const { user, isLoading, isHydrated } = useAuth();
+  
+  useEffect(() => {
+    // Only redirect after hydration is complete and we're not loading
+    if (isHydrated && !isLoading && !user) {
+      // Redirect to login page
+      window.location.href = '/login';
+    }
+  }, [user, isLoading, isHydrated]);
+  
+  // Return user profile if authenticated, null if still loading or not authenticated
+  return user;
+};
+
 // Helper function to convert Firebase auth error codes to user-friendly messages
 const getAuthErrorMessage = (errorCode: string): string => {
   switch (errorCode) {
