@@ -53,10 +53,33 @@ body {
     color: #111827 !important; /* text-gray-900 equivalent */
   }
   
-  /* Ensure all form inputs have proper text color */
+  /* Ensure all form inputs have proper text color - override dark mode */
   input[type="email"],
   input[type="password"],
   input[type="text"] {
     color: #111827 !important; /* text-gray-900 equivalent */
+    background-color: white !important;
+  }
+  
+  /* Additional specificity for input elements in forms */
+  form input[type="email"],
+  form input[type="password"],
+  form input[type="text"],
+  .space-y-4 input[type="email"],
+  .space-y-4 input[type="password"],
+  .space-y-4 input[type="text"] {
+    color: #111827 !important; /* text-gray-900 equivalent */
+    background-color: white !important;
+  }
+  
+  /* Override any inherited text color from body in dark mode */
+  input {
+    color: #111827 !important; /* text-gray-900 equivalent */
+  }
+  
+  /* Ensure placeholder text is visible but lighter */
+  input::placeholder {
+    color: #9ca3af !important; /* text-gray-400 equivalent */
+    opacity: 1 !important;
   }
 }
