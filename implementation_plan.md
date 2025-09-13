@@ -1,108 +1,109 @@
 # Implementation Plan
 
-Fix Firebase App Hosting deployment issues including container startup failures, authentication permission errors, and optimize the Next.js application for Cloud Run deployment.
+## Overview
+Fix Google Cloud Run deployment timeout issue by optimizing server startup performance and implementing proper health check handling for Firebase App Hosting.
 
-The current deployment is failing due to multiple issues: the Firebase service account lacks proper permissions, the container fails to start within the allocated timeout, and the Firebase Admin SDK cannot initialize properly. This plan addresses each issue systematically to ensure successful deployment and operation in Firebase App Hosting environment.
+The current deployment fails because the Next.js server with authentication middleware takes too long to initialize and respond to health checks within Cloud Run's allocated timeout window. The server performs extensive synchronous health checks, Firebase Admin SDK initialization, and authentication setup during startup, causing delays that exceed Cloud Run's health check timeout. This implementation will optimize the startup sequence, implement asynchronous initialization patterns, and ensure the server responds to health checks immediately while background services initialize.
 
 ## Types
+Define interfaces for optimized startup and health check management.
 
-Update Firebase service account permissions and container configuration types.
+```typescript
+interface StartupConfig {
+  enableHealthChecks: boolean;
+  healthCheckTimeout: number;
+  authInitTimeout: number;
+  skipAuthOnStartup: boolean;
+  fastStartup: boolean;
+}
 
-**Service Account Permission Requirements:**
-- `roles/serviceusage.serviceUsageConsumer` - Required for Firebase Auth API access
-- `firebase-app-hosting-compute@getseerai.iam.gserviceaccount.com` - Default service account
+interface HealthCheckResponse {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  timestamp: string;
+  services: {
+    server: boolean;
+    nextjs: boolean;
+    auth: boolean;
+    firebase: boolean;
+  };
+  startupTime?: number;
+}
 
-**Container Configuration:**
-- Port: 8080 (fixed)
-- Memory: 512Mi
-- CPU: 1.00
-- Startup timeout: Extended to handle Firebase initialization
-- Health check timeout: Extended for authentication service
-
-**Environment Variables:**
-- `FIREBASE_CONFIG` - Provided by App Hosting (basic config)
-- `FIREBASE_WEBAPP_CONFIG` - Provided by App Hosting (full client config)
-- `PORT=8080` - Container port
-- `NODE_ENV=production` - Production environment
+interface AsyncInitializationManager {
+  initialized: boolean;
+  services: Map<string, boolean>;
+  initialize(): Promise<void>;
+  getStatus(): HealthCheckResponse;
+}
+```
 
 ## Files
+Modify server startup and health check implementation files.
 
-Modify existing configuration and server files to fix deployment issues.
+**Modified files:**
+- `pickleglass_web/server.js` - Optimize startup sequence, implement fast startup mode, defer non-critical initialization
+- `pickleglass_web/server/utils/startup-health.js` - Make health checks asynchronous and non-blocking
+- `pickleglass_web/server/utils/firebase-admin.js` - Implement lazy initialization pattern
+- `pickleglass_web/server/middleware/auth.js` - Add graceful degradation for auth middleware
+- `apphosting.yaml` - Update environment variables and health check configuration
 
-**Files to be modified:**
-- `apphosting.yaml` - Update container configuration and timeouts
-- `pickleglass_web/next.config.js` - Enable standalone output for optimal Cloud Run deployment
-- `pickleglass_web/server/utils/firebase-admin.js` - Improve error handling and graceful degradation
-- `pickleglass_web/server/utils/startup-health.js` - Extend timeouts and improve resilience
-- `pickleglass_web/server.js` - Optimize startup sequence and error handling
-
-**Files to be created:**
-- `FIREBASE_IAM_SETUP.md` - Documentation for setting up proper IAM permissions
-- `pickleglass_web/server/utils/cloud-run-health.js` - Cloud Run specific health checks
+**New files:**
+- `pickleglass_web/server/utils/async-init-manager.js` - Background service initialization manager
+- `pickleglass_web/server/utils/fast-startup.js` - Fast startup configuration and utilities
 
 ## Functions
-
-Enhance startup and health check functions for better Cloud Run compatibility.
-
-**Modified functions:**
-- `startServer()` in `server.js` - Add better error handling and startup sequencing
-- `validateAppHostingEnvironment()` in `startup-health.js` - Improve environment validation
-- `healthCheckWithAuth()` in `startup-health.js` - Add graceful degradation for auth failures
-- `AuthenticationService.initialize()` in `firebase-admin.js` - Better error handling for permission issues
+Implement optimized startup and initialization functions.
 
 **New functions:**
-- `validateCloudRunEnvironment()` - Cloud Run specific environment validation
-- `createCloudRunHealthChecker()` - Health checker optimized for Cloud Run
-- `gracefulAuthDegradation()` - Handle auth service failures gracefully
+- `createAsyncInitManager()` in `async-init-manager.js` - Manages background service initialization
+- `enableFastStartup()` in `fast-startup.js` - Configures fast startup mode for Cloud Run
+- `createImmediateHealthCheck()` in `startup-health.js` - Returns immediate health response
+- `initializeServicesAsync()` in `server.js` - Background service initialization
+
+**Modified functions:**
+- `startServer()` in `server.js` - Implement fast startup sequence
+- `runStartupValidation()` in `startup-health.js` - Make validation asynchronous and non-blocking
+- `initialize()` in `firebase-admin.js` - Add lazy initialization pattern
+- `authenticateRequest()` in `auth.js` - Add graceful degradation when auth not ready
 
 ## Classes
-
-Update existing service classes for better Cloud Run deployment compatibility.
+Update existing classes for async initialization patterns.
 
 **Modified classes:**
-- `AuthenticationService` in `firebase-admin.js` - Enhanced error handling and permission checking
-- `StartupHealthChecker` in `startup-health.js` - Extended timeouts and better failure handling
+- `AuthenticationService` in `firebase-admin.js` - Add lazy initialization, graceful degradation
+- `StartupHealthChecker` in `startup-health.js` - Make checks non-blocking, return immediate responses
 
-**Enhanced error handling:**
-- Graceful degradation when Firebase Admin SDK fails to initialize
-- Better logging for permission-related errors
-- Timeout handling for slow Cloud Run startups
+**New classes:**
+- `AsyncInitializationManager` in `async-init-manager.js` - Manages background service initialization
+- `FastStartupManager` in `fast-startup.js` - Handles fast startup configuration
 
 ## Dependencies
+No new dependencies required - optimization uses existing packages.
 
-No new dependencies required - focus on configuration and deployment optimization.
-
-**Configuration changes:**
-- Next.js standalone output enabled
-- Extended container timeouts
-- Improved health check intervals
-
-**Firebase service account permissions:**
-- Add `roles/serviceusage.serviceUsageConsumer` role
-- Verify `firebase-app-hosting-compute@getseerai.iam.gserviceaccount.com` has proper permissions
+All optimizations will use existing dependencies (express, next, firebase-admin) with improved initialization patterns.
 
 ## Testing
+Update health check and startup validation tests.
 
-Update health checks and add Cloud Run specific validation.
+**Modified test files:**
+- Update existing health check tests to handle async initialization
+- Add tests for graceful degradation scenarios
+- Test fast startup mode functionality
 
-**Modified test approaches:**
-- Extended startup health check timeouts
-- Graceful handling of Firebase Admin SDK initialization failures
-- Better error reporting for permission issues
-
-**New validation:**
-- Cloud Run environment detection
-- Service account permission validation
-- Container startup sequence optimization
+**New test scenarios:**
+- Fast startup mode validation
+- Background service initialization
+- Health check immediate response
+- Graceful degradation when services not ready
 
 ## Implementation Order
+Implement changes in logical sequence to minimize disruption.
 
-Sequential steps to fix deployment issues while maintaining system stability.
-
-1. **Update IAM Permissions** - Add required service account roles
-2. **Optimize Next.js Configuration** - Enable standalone output and container optimizations
-3. **Enhance Error Handling** - Improve Firebase Admin SDK initialization and graceful degradation
-4. **Extend Container Timeouts** - Update apphosting.yaml with longer startup timeouts
-5. **Improve Health Checks** - Make startup validation more resilient to temporary failures
-6. **Update Server Startup** - Optimize server.js startup sequence for Cloud Run
-7. **Test Deployment** - Verify fixes resolve the container startup and authentication issues
+1. **Create async initialization manager** - Build foundation for background service initialization
+2. **Create fast startup utilities** - Implement fast startup configuration and detection
+3. **Update Firebase Admin SDK** - Add lazy initialization and graceful degradation
+4. **Update authentication middleware** - Add graceful degradation when auth not ready
+5. **Update health check system** - Make health checks non-blocking and immediate
+6. **Update main server.js** - Implement fast startup sequence and background initialization
+7. **Update App Hosting configuration** - Optimize environment variables and timeouts
+8. **Test and validate** - Ensure all components work together correctly

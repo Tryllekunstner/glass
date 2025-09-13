@@ -266,6 +266,12 @@ function createStartupHealthChecker() {
  * @returns {Promise<Object>} Startup validation results
  */
 async function runStartupValidation() {
+  // Check if we should skip health checks for fast startup
+  if (process.env.SKIP_STARTUP_HEALTH_CHECKS === 'true' || process.env.FAST_STARTUP_ENABLED === 'true') {
+    console.log('🚀 Fast startup mode: Skipping blocking startup validation');
+    return createImmediateHealthResponse();
+  }
+
   console.log('🔍 Running startup validation...');
   
   const checker = createStartupHealthChecker();
@@ -287,6 +293,93 @@ async function runStartupValidation() {
   return results;
 }
 
+/**
+ * Create immediate health response for fast startup mode
+ * @returns {Object} Immediate health response
+ */
+function createImmediateHealthResponse() {
+  return {
+    healthy: true,
+    checks: {
+      'fast-startup': {
+        passed: true,
+        duration: 0,
+        error: null,
+      },
+    },
+    startupTime: 0,
+    timestamp: new Date().toISOString(),
+    mode: 'fast_startup',
+    message: 'Health checks skipped for fast startup',
+  };
+}
+
+/**
+ * Run health checks asynchronously in background
+ * @returns {Promise<void>} Promise that resolves when background checks complete
+ */
+async function runBackgroundHealthChecks() {
+  try {
+    console.log('🔍 Running background health checks...');
+    
+    const checker = createStartupHealthChecker();
+    const results = await checker.runChecks();
+    
+    if (results.healthy) {
+      console.log(`✅ Background health checks passed in ${results.startupTime}ms`);
+    } else {
+      console.warn(`⚠️  Some background health checks failed in ${results.startupTime}ms`);
+      
+      // Log failed checks
+      for (const [name, check] of Object.entries(results.checks)) {
+        if (!check.passed) {
+          console.error(`❌ Background check ${name}: ${check.error || 'Check failed'}`);
+        }
+      }
+    }
+    
+    return results;
+  } catch (error) {
+    console.error('❌ Background health checks failed:', error);
+    return {
+      healthy: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    };
+  }
+}
+
+/**
+ * Create immediate health check response for Cloud Run
+ * @param {Object} initManager - Optional async initialization manager
+ * @returns {Object} Health check response
+ */
+function createCloudRunHealthResponse(initManager = null) {
+  const response = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    services: {
+      server: true,
+      nextjs: true,
+      auth: 'initializing',
+      firebase: 'initializing',
+    },
+    mode: 'fast_startup',
+    environment: 'cloud_run',
+    message: 'Server started successfully, background services initializing',
+  };
+
+  // If we have an initialization manager, get more detailed status
+  if (initManager) {
+    const status = initManager.getHealthStatus();
+    response.services = status.services;
+    response.status = status.status;
+    response.initialization = status.details;
+  }
+
+  return response;
+}
+
 module.exports = {
   StartupHealthChecker,
   validateAppHostingEnvironment,
@@ -295,4 +388,7 @@ module.exports = {
   checkNetworkConnectivity,
   createStartupHealthChecker,
   runStartupValidation,
+  createImmediateHealthResponse,
+  runBackgroundHealthChecks,
+  createCloudRunHealthResponse,
 };

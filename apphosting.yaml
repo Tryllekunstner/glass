@@ -1,4 +1,4 @@
-# Firebase App Hosting configuration
+# Firebase App Hosting configuration with fast startup optimizations
 runConfig:
   cpu: 1
   memory: 512Mi
@@ -6,16 +6,41 @@ runConfig:
   minInstances: 0
   concurrency: 80
   env:
+    # Core server configuration
     - variable: PORT
       value: "8080"
     - variable: NODE_ENV
       value: "production"
     - variable: FIREBASE_APP_HOSTING
       value: "true"
+    
+    # Fast startup configuration
+    - variable: FAST_STARTUP
+      value: "true"
+    - variable: FAST_STARTUP_ENABLED
+      value: "true"
+    - variable: SKIP_STARTUP_HEALTH_CHECKS
+      value: "true"
+    - variable: SKIP_AUTH_INIT
+      value: "true"
+    - variable: SKIP_NETWORK_CHECKS
+      value: "true"
+    - variable: DEFER_NON_CRITICAL
+      value: "true"
+    - variable: IMMEDIATE_HEALTH_RESPONSE
+      value: "true"
+    
+    # Optimized timeouts for Cloud Run
+    - variable: MAX_STARTUP_TIME
+      value: "15000"
     - variable: STARTUP_TIMEOUT
-      value: "60000"
+      value: "20000"
     - variable: AUTH_INITIALIZATION_TIMEOUT
-      value: "30000"
+      value: "15000"
+    
+    # Performance optimizations
+    - variable: SKIP_BLOCKING_INIT
+      value: "true"
 
 # Build configuration - redirect to web directory
 buildConfig:

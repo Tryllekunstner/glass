@@ -72,12 +72,135 @@ async function authenticateRequest(req, res, next) {
  */
 async function performAuthenticationWithFallback(req, res, next, startTime) {
   try {
+    // Check if we're in fast startup mode and auth services might not be ready
+    if (process.env.FAST_STARTUP_ENABLED === 'true') {
+      const { authService } = require('../utils/firebase-admin');
+      
+      // If auth service is not initialized yet, use graceful degradation
+      if (!authService.initialized) {
+        console.log('🚀 Fast startup mode: Auth service not ready, using graceful degradation');
+        return performGracefulDegradation(req, res, next, startTime);
+      }
+    }
+
     await performAuthentication(req, res, next, startTime);
   } catch (error) {
     console.error('🔒 Authentication failed, using fallback:', error);
     logAuthEvent('auth_fallback_triggered', req, null, { error: error.message });
     
     // Use fallback middleware
+    return createFallbackAuthMiddleware()(req, res, next);
+  }
+}
+
+/**
+ * Perform graceful degradation when auth services are not ready
+ */
+async function performGracefulDegradation(req, res, next, startTime) {
+  try {
+    // Extract token for future use when auth service becomes available
+    const token = extractAuthToken(req);
+    
+    // Create minimal auth context indicating services are initializing
+    const authContext = {
+      user: null,
+      isAuthenticated: false,
+      token: token,
+      fallback: false,
+      initializing: true,
+      message: 'Authentication services are initializing',
+    };
+
+    // Attach auth context to request
+    req.auth = authContext;
+    req.user = null;
+
+    // Set headers to indicate auth is initializing
+    res.setHeader('X-Auth-Status', 'initializing');
+    res.setHeader('X-Auth-Mode', 'graceful-degradation');
+
+    // Check route protection with graceful degradation
+    const routeConfig = shouldProtectRoute(req.path);
+    
+    if (routeConfig) {
+      // Route requires authentication but services aren't ready
+      logAuthEvent('graceful_degradation_access_denied', req, null, { 
+        reason: 'authentication_services_initializing',
+        path: req.path 
+      });
+
+      if (isApiRequest(req)) {
+        return res.status(503).json({
+          error: 'Authentication services are initializing',
+          message: 'Please try again in a few moments',
+          status: 'initializing',
+          retryAfter: 5, // Suggest retry after 5 seconds
+        });
+      }
+
+      // For browser requests, show a loading page or redirect to login with message
+      return res.status(503).send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Loading...</title>
+            <meta http-equiv="refresh" content="3">
+            <style>
+              body { 
+                font-family: Arial, sans-serif; 
+                margin: 40px; 
+                text-align: center; 
+                background: #f5f5f5;
+              }
+              .loading { 
+                background: white; 
+                padding: 40px; 
+                border-radius: 10px; 
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                max-width: 500px; 
+                margin: 100px auto; 
+              }
+              .spinner {
+                border: 4px solid #f3f3f3;
+                border-top: 4px solid #3498db;
+                border-radius: 50%;
+                width: 40px;
+                height: 40px;
+                animation: spin 2s linear infinite;
+                margin: 20px auto;
+              }
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="loading">
+              <div class="spinner"></div>
+              <h2>Starting up...</h2>
+              <p>Authentication services are initializing. This page will refresh automatically.</p>
+              <p><small>If this takes too long, please <a href="javascript:window.location.reload()">refresh manually</a>.</small></p>
+            </div>
+          </body>
+        </html>
+      `);
+    }
+
+    // Public route, continue with graceful degradation
+    logAuthEvent('graceful_degradation_public_access', req, null, { path: req.path });
+    
+    // Log performance metrics
+    const duration = Date.now() - startTime;
+    console.log(`🚀 Graceful degradation completed in ${duration}ms for ${req.path}`);
+    
+    next();
+
+  } catch (error) {
+    console.error('🔒 Graceful degradation error:', error);
+    logAuthEvent('graceful_degradation_error', req, null, { error: error.message });
+    
+    // Fall back to the fallback middleware
     return createFallbackAuthMiddleware()(req, res, next);
   }
 }

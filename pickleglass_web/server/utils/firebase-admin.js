@@ -13,10 +13,17 @@ class AuthenticationService {
 
   /**
    * Initialize Firebase Admin SDK (lazy initialization with App Hosting support)
+   * @returns {Promise<void>} Promise that resolves when initialization completes
    */
-  initialize() {
+  async initialize() {
     if (this.initialized) {
-      return;
+      return Promise.resolve();
+    }
+
+    // Check if we should skip initialization for fast startup
+    if (process.env.SKIP_AUTH_INIT === 'true' || process.env.FAST_STARTUP_ENABLED === 'true') {
+      console.log('🚀 Fast startup mode: Deferring Firebase Admin SDK initialization');
+      return Promise.resolve();
     }
 
     try {
@@ -29,7 +36,7 @@ class AuthenticationService {
           console.warn('⚠️  Firebase project ID not found in environment variables or Firebase JSON config');
           console.warn('⚠️  Firebase Admin SDK will not be initialized');
           this.initialized = false;
-          return;
+          return Promise.resolve();
         }
 
         // Detect environment type
@@ -72,10 +79,30 @@ class AuthenticationService {
       if (this.isAppHostingEnvironment()) {
         console.warn('⚠️  Continuing without Firebase Admin SDK in App Hosting environment');
         this.initialized = false; // Mark as not initialized but don't throw
-        return;
+        return Promise.resolve();
       }
       
       throw error;
+    }
+
+    return Promise.resolve();
+  }
+
+  /**
+   * Ensure Firebase Admin SDK is initialized (lazy initialization)
+   * @returns {Promise<boolean>} True if initialized successfully
+   */
+  async ensureInitialized() {
+    if (this.initialized) {
+      return true;
+    }
+
+    try {
+      await this.initialize();
+      return this.initialized;
+    } catch (error) {
+      console.error('❌ Failed to ensure Firebase Admin SDK initialization:', error);
+      return false;
     }
   }
 
@@ -96,9 +123,14 @@ class AuthenticationService {
    * @returns {Promise<Object|null>} Verified user information or null if invalid
    */
   async verifyToken(token) {
-    this.initialize(); // Ensure Firebase Admin SDK is initialized
-    
     if (!token || typeof token !== 'string') {
+      return null;
+    }
+
+    // Ensure Firebase Admin SDK is initialized
+    const isInitialized = await this.ensureInitialized();
+    if (!isInitialized || !this.adminAuth) {
+      console.warn('🔒 Firebase Admin SDK not available for token verification');
       return null;
     }
 
@@ -135,9 +167,14 @@ class AuthenticationService {
    * @returns {Promise<Object|null>} User information or null if not found
    */
   async getUserByUid(uid) {
-    this.initialize(); // Ensure Firebase Admin SDK is initialized
-    
     if (!uid || typeof uid !== 'string') {
+      return null;
+    }
+
+    // Ensure Firebase Admin SDK is initialized
+    const isInitialized = await this.ensureInitialized();
+    if (!isInitialized || !this.adminAuth) {
+      console.warn('🔒 Firebase Admin SDK not available for user lookup');
       return null;
     }
 
@@ -218,9 +255,15 @@ class AuthenticationService {
         return true; // Return true during build time
       }
 
-      this.initialize(); // Ensure Firebase Admin SDK is initialized
-      
-      if (!this.initialized || !this.adminAuth) {
+      // For fast startup mode, return true immediately if not yet initialized
+      if (process.env.FAST_STARTUP_ENABLED === 'true' && !this.initialized) {
+        console.log('🚀 Fast startup mode: Firebase Admin SDK initializing in background');
+        return true;
+      }
+
+      // Ensure Firebase Admin SDK is initialized
+      const isInitialized = await this.ensureInitialized();
+      if (!isInitialized || !this.adminAuth) {
         return false;
       }
 

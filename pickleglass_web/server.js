@@ -4,6 +4,18 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const compression = require('compression');
 
+// Import fast startup utilities
+const { enableFastStartup, createOptimizedServerConfig } = require('./server/utils/fast-startup');
+const { createAsyncInitManager } = require('./server/utils/async-init-manager');
+const { createCloudRunHealthResponse } = require('./server/utils/startup-health');
+
+// Enable fast startup and get configuration
+const fastStartupManager = enableFastStartup();
+const serverConfig = createOptimizedServerConfig();
+
+// Create async initialization manager
+const initManager = createAsyncInitManager();
+
 // Import authentication middleware with error handling
 let authenticateRequest, healthCheck;
 try {
@@ -34,15 +46,17 @@ try {
 }
 
 const dev = process.env.NODE_ENV !== 'production';
-const hostname = '0.0.0.0'; // Listen on all interfaces for Cloud Run
-const port = parseInt(process.env.PORT, 10) || 8080;
+const hostname = serverConfig.hostname;
+const port = serverConfig.port;
 
-console.log('=== Next.js Server with Authentication Startup ===');
+console.log('=== Next.js Server with Fast Startup ===');
 console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
 console.log(`PORT: ${process.env.PORT}`);
 console.log(`Development mode: ${dev}`);
 console.log(`Target hostname: ${hostname}`);
 console.log(`Target port: ${port}`);
+console.log(`Fast startup: ${serverConfig.startup.isFastStartupEnabled ? 'ENABLED' : 'DISABLED'}`);
+console.log(`Cloud Run: ${serverConfig.startup.isCloudRun ? 'YES' : 'NO'}`);
 
 // Create Next.js app
 const app = next({ 
@@ -61,10 +75,18 @@ async function startServer() {
   const startTime = Date.now();
   
   try {
-    console.log(`[${new Date().toISOString()}] Starting Next.js server with authentication...`);
+    console.log(`[${new Date().toISOString()}] Starting Next.js server with fast startup...`);
     
-    // Skip startup health checks in production to speed up container startup
-    if (process.env.NODE_ENV !== 'production') {
+    // Start background initialization immediately (non-blocking)
+    if (serverConfig.startup.isFastStartupEnabled) {
+      console.log('🚀 Fast startup mode: Starting background service initialization');
+      initManager.startInitialization().catch(error => {
+        console.error('❌ Background initialization failed:', error);
+      });
+    }
+    
+    // Handle startup validation based on configuration
+    if (!serverConfig.startup.skipHealthChecks && process.env.NODE_ENV !== 'production') {
       try {
         const { runStartupValidation } = require('./server/utils/startup-health');
         const healthResults = await runStartupValidation();
@@ -77,21 +99,25 @@ async function startServer() {
         console.warn('⚠️  Continuing with server startup despite health check failures...');
       }
     } else {
-      console.log('🚀 Production mode: Skipping startup health checks for faster container startup');
+      console.log('🚀 Fast startup mode: Skipping blocking startup health checks');
     }
     
-    // Prepare the Next.js app with timeout
-    const timeoutMs = parseInt(process.env.STARTUP_TIMEOUT, 10) || 60000;
+    // Prepare the Next.js app with optimized timeout
+    const timeoutMs = serverConfig.startup.maxStartupTime || 30000;
     const prepareTimeout = setTimeout(() => {
-      console.error(`Next.js app preparation timed out after ${timeoutMs}ms`);
+      console.error(`❌ Next.js app preparation timed out after ${timeoutMs}ms`);
+      if (serverConfig.startup.isCloudRun) {
+        console.error('💡 Cloud Run detected - consider optimizing Next.js build or increasing timeout');
+      }
       process.exit(1);
     }, timeoutMs);
     
+    console.log(`[${new Date().toISOString()}] Preparing Next.js app (timeout: ${timeoutMs}ms)...`);
     await app.prepare();
     clearTimeout(prepareTimeout);
     
     const prepareTime = Date.now() - startTime;
-    console.log(`[${new Date().toISOString()}] Next.js app prepared successfully in ${prepareTime}ms`);
+    console.log(`[${new Date().toISOString()}] ✅ Next.js app prepared successfully in ${prepareTime}ms`);
 
     // Create Express server
     const server = express();
@@ -128,9 +154,33 @@ async function startServer() {
     });
 
     // Health check endpoints (before authentication)
-    server.get('/health', healthCheck);
-    server.get('/healthz', healthCheck);
-    server.get('/status', healthCheck);
+    // Use optimized health checks for fast startup
+    if (serverConfig.startup.immediateHealthResponse) {
+      console.log('🚀 Fast startup mode: Using immediate health check responses');
+      
+      const immediateHealthCheck = (req, res) => {
+        const response = createCloudRunHealthResponse(initManager);
+        res.status(200).json(response);
+      };
+      
+      server.get('/health', immediateHealthCheck);
+      server.get('/healthz', immediateHealthCheck);
+      server.get('/status', immediateHealthCheck);
+      
+      // Add detailed status endpoint for debugging
+      server.get('/status/detailed', (req, res) => {
+        const status = initManager.getStatus();
+        res.json({
+          ...createCloudRunHealthResponse(initManager),
+          detailed: status,
+          fastStartup: serverConfig.startup,
+        });
+      });
+    } else {
+      server.get('/health', healthCheck);
+      server.get('/healthz', healthCheck);
+      server.get('/status', healthCheck);
+    }
 
     // Basic server info endpoint
     server.get('/server-info', (req, res) => {
