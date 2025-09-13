@@ -26,6 +26,23 @@ export interface EnvironmentConfig {
 }
 
 /**
+ * Helper function to get the actual value for a given environment variable
+ * Used for generating helpful error messages with correct values
+ */
+function getActualValueForVar(varName: string): string {
+  const actualValues: Record<string, string> = {
+    'NEXT_PUBLIC_FIREBASE_API_KEY': 'AIzaSyA8-g3sUmtRL4qwWCc1_qUwBB6jWh68VH4',
+    'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN': 'getseerai.firebaseapp.com',
+    'NEXT_PUBLIC_FIREBASE_PROJECT_ID': 'getseerai',
+    'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET': 'getseerai.appspot.com',
+    'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID': '992558788759',
+    'NEXT_PUBLIC_FIREBASE_APP_ID': '1:992558788759:web:3c8927306728856aadf9d2'
+  };
+  
+  return actualValues[varName] || '<your-value-here>';
+}
+
+/**
  * Validates that all required environment variables are present and non-empty
  * @returns Validated environment configuration
  * @throws Error if any required environment variables are missing
@@ -54,11 +71,29 @@ export function validateEnvironmentConfig(): EnvironmentConfig {
   }
 
   if (missingVars.length > 0) {
-    throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    const errorMessage = `Missing required environment variables: ${missingVars.join(', ')}\n\n` +
+      `🔧 FIREBASE APP HOSTING SETUP REQUIRED:\n` +
+      `Environment variables must be configured in Firebase App Hosting.\n` +
+      `Run these commands to fix:\n\n` +
+      missingVars.map(varName => 
+        `firebase apphosting:env:set ${varName}="<your-value-here>"`
+      ).join('\n') +
+      `\n\nSee FIREBASE_ENV_SETUP.md for complete setup instructions.`;
+    throw new Error(errorMessage);
   }
 
   if (invalidVars.length > 0) {
-    throw new Error(`Invalid placeholder values found in environment variables: ${invalidVars.join(', ')}`);
+    const errorMessage = `Invalid placeholder values found in environment variables: ${invalidVars.join(', ')}\n\n` +
+      `🔧 FIREBASE APP HOSTING CONFIGURATION ISSUE:\n` +
+      `Placeholder values detected. This usually means environment variables\n` +
+      `are not properly configured in Firebase App Hosting.\n\n` +
+      `Run these commands to fix:\n\n` +
+      invalidVars.map(varName => {
+        const actualValue = getActualValueForVar(varName);
+        return `firebase apphosting:env:set ${varName}="${actualValue}"`;
+      }).join('\n') +
+      `\n\nSee FIREBASE_ENV_SETUP.md for complete setup instructions.`;
+    throw new Error(errorMessage);
   }
 
   // Validate NODE_ENV
