@@ -191,7 +191,82 @@ async function startServer() {
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         authentication: 'enabled',
+        fastStartup: serverConfig.startup.isFastStartupEnabled,
+        cloudRun: serverConfig.startup.isCloudRun,
       });
+    });
+
+    // Firebase configuration diagnostic endpoint
+    server.get('/debug/firebase-config', (req, res) => {
+      try {
+        const diagnostics = {
+          timestamp: new Date().toISOString(),
+          environment: {
+            NODE_ENV: process.env.NODE_ENV,
+            FIREBASE_APP_HOSTING: process.env.FIREBASE_APP_HOSTING,
+            GOOGLE_CLOUD_PROJECT: process.env.GOOGLE_CLOUD_PROJECT,
+            GCLOUD_PROJECT: process.env.GCLOUD_PROJECT,
+            K_SERVICE: process.env.K_SERVICE,
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+          },
+          configSources: {
+            FIREBASE_CONFIG_available: !!process.env.FIREBASE_CONFIG,
+            FIREBASE_WEBAPP_CONFIG_available: !!process.env.FIREBASE_WEBAPP_CONFIG,
+            FIREBASE_SERVICE_ACCOUNT_KEY_available: !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
+          },
+          firebaseConfig: null,
+          projectId: null,
+          error: null,
+        };
+
+        // Try to get Firebase project ID
+        try {
+          const { getFirebaseProjectId } = require('./utils/config.ts');
+          diagnostics.projectId = getFirebaseProjectId();
+        } catch (configError) {
+          diagnostics.error = `Config utility error: ${configError.message}`;
+          
+          // Fallback to environment variables
+          diagnostics.projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 
+                                 process.env.GOOGLE_CLOUD_PROJECT || 
+                                 process.env.GCLOUD_PROJECT;
+        }
+
+        // Try to parse Firebase config if available
+        if (process.env.FIREBASE_CONFIG) {
+          try {
+            const firebaseConfig = JSON.parse(process.env.FIREBASE_CONFIG);
+            diagnostics.firebaseConfig = {
+              projectId: firebaseConfig.projectId,
+              hasApiKey: !!firebaseConfig.apiKey,
+              hasAuthDomain: !!firebaseConfig.authDomain,
+              hasStorageBucket: !!firebaseConfig.storageBucket,
+              hasMessagingSenderId: !!firebaseConfig.messagingSenderId,
+              hasAppId: !!firebaseConfig.appId,
+            };
+          } catch (parseError) {
+            diagnostics.error = `FIREBASE_CONFIG parse error: ${parseError.message}`;
+          }
+        }
+
+        // Check Firebase Admin SDK status
+        const { authService } = require('./server/utils/firebase-admin');
+        diagnostics.firebaseAdmin = {
+          initialized: authService.initialized,
+          isAppHostingEnvironment: authService.isAppHostingEnvironment(),
+        };
+
+        // Check initialization manager status
+        diagnostics.initializationManager = initManager.getStatus();
+
+        res.json(diagnostics);
+      } catch (error) {
+        res.status(500).json({
+          error: 'Failed to generate Firebase diagnostics',
+          message: error.message,
+          timestamp: new Date().toISOString(),
+        });
+      }
     });
 
     // Authentication middleware (this is the key integration)

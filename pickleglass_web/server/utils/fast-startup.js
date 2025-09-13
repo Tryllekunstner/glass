@@ -44,13 +44,21 @@ class FastStartupManager {
    * @returns {boolean} True if fast startup should be enabled
    */
   shouldEnableFastStartup() {
-    // Enable fast startup in Cloud Run or when explicitly requested
+    // ALWAYS enable fast startup in Cloud Run environments
+    // This is critical because Firebase App Hosting may not pass environment variables
     if (this.isCloudRun) {
+      console.log('🚀 Cloud Run environment detected - FORCING fast startup mode');
       return true;
     }
 
     // Allow manual override
-    if (process.env.FAST_STARTUP === 'true') {
+    if (process.env.FAST_STARTUP === 'true' || process.env.FAST_STARTUP_ENABLED === 'true') {
+      return true;
+    }
+
+    // Enable in production environments
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🚀 Production environment detected - enabling fast startup mode');
       return true;
     }
 

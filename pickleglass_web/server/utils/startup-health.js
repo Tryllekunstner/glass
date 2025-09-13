@@ -267,8 +267,17 @@ function createStartupHealthChecker() {
  */
 async function runStartupValidation() {
   // Check if we should skip health checks for fast startup
-  if (process.env.SKIP_STARTUP_HEALTH_CHECKS === 'true' || process.env.FAST_STARTUP_ENABLED === 'true') {
+  // Always skip in Cloud Run/production environments for faster startup
+  const isCloudRun = process.env.K_SERVICE || process.env.FIREBASE_APP_HOSTING === 'true';
+  const isProduction = process.env.NODE_ENV === 'production';
+  const shouldSkip = process.env.SKIP_STARTUP_HEALTH_CHECKS === 'true' || 
+                    process.env.FAST_STARTUP_ENABLED === 'true' ||
+                    isCloudRun || 
+                    isProduction;
+  
+  if (shouldSkip) {
     console.log('🚀 Fast startup mode: Skipping blocking startup validation');
+    console.log(`  Reason: ${isCloudRun ? 'Cloud Run' : isProduction ? 'Production' : 'Environment Variable'}`);
     return createImmediateHealthResponse();
   }
 

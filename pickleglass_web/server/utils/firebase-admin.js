@@ -21,20 +21,62 @@ class AuthenticationService {
     }
 
     // Check if we should skip initialization for fast startup
-    if (process.env.SKIP_AUTH_INIT === 'true' || process.env.FAST_STARTUP_ENABLED === 'true') {
+    // Always defer in Cloud Run/production environments for faster startup
+    const isCloudRun = this.isAppHostingEnvironment();
+    const isProduction = process.env.NODE_ENV === 'production';
+    const shouldDefer = process.env.SKIP_AUTH_INIT === 'true' || 
+                       process.env.FAST_STARTUP_ENABLED === 'true' ||
+                       isCloudRun || 
+                       isProduction;
+    
+    if (shouldDefer) {
       console.log('🚀 Fast startup mode: Deferring Firebase Admin SDK initialization');
+      console.log(`  Reason: ${isCloudRun ? 'Cloud Run' : isProduction ? 'Production' : 'Environment Variable'}`);
       return Promise.resolve();
     }
 
     try {
+      // Enhanced environment diagnostics
+      console.log('🔍 Firebase Admin SDK initialization diagnostics:');
+      console.log(`  NODE_ENV: ${process.env.NODE_ENV}`);
+      console.log(`  FIREBASE_APP_HOSTING: ${process.env.FIREBASE_APP_HOSTING}`);
+      console.log(`  GOOGLE_CLOUD_PROJECT: ${process.env.GOOGLE_CLOUD_PROJECT}`);
+      console.log(`  GCLOUD_PROJECT: ${process.env.GCLOUD_PROJECT}`);
+      console.log(`  K_SERVICE: ${process.env.K_SERVICE}`);
+      console.log(`  FIREBASE_CONFIG available: ${!!process.env.FIREBASE_CONFIG}`);
+      console.log(`  FIREBASE_WEBAPP_CONFIG available: ${!!process.env.FIREBASE_WEBAPP_CONFIG}`);
+      console.log(`  NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}`);
+      console.log(`  FIREBASE_SERVICE_ACCOUNT_KEY available: ${!!process.env.FIREBASE_SERVICE_ACCOUNT_KEY}`);
+
       if (getApps().length === 0) {
         // Use the new config utility that supports Firebase JSON extraction
-        const { getFirebaseProjectId } = require('../../utils/config.ts');
-        const projectId = getFirebaseProjectId();
+        let projectId;
+        try {
+          const { getFirebaseProjectId } = require('../../utils/config.ts');
+          projectId = getFirebaseProjectId();
+          console.log(`🔍 Project ID from config utility: ${projectId}`);
+        } catch (configError) {
+          console.error('❌ Error getting Firebase project ID from config utility:', configError);
+          
+          // Fallback to environment variables
+          projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 
+                     process.env.GOOGLE_CLOUD_PROJECT || 
+                     process.env.GCLOUD_PROJECT;
+          console.log(`🔍 Fallback project ID from env vars: ${projectId}`);
+        }
         
         if (!projectId) {
-          console.warn('⚠️  Firebase project ID not found in environment variables or Firebase JSON config');
-          console.warn('⚠️  Firebase Admin SDK will not be initialized');
+          const errorMsg = 'Firebase project ID not found in any configuration source';
+          console.error(`❌ ${errorMsg}`);
+          console.error('   Checked sources:');
+          console.error('   - getFirebaseProjectId() utility');
+          console.error('   - NEXT_PUBLIC_FIREBASE_PROJECT_ID');
+          console.error('   - GOOGLE_CLOUD_PROJECT');
+          console.error('   - GCLOUD_PROJECT');
+          console.error('   - FIREBASE_CONFIG JSON');
+          console.error('   - FIREBASE_WEBAPP_CONFIG JSON');
+          
+          // Don't throw error, just mark as not initialized
           this.initialized = false;
           return Promise.resolve();
         }
@@ -44,36 +86,59 @@ class AuthenticationService {
         const isLocalDev = process.env.NODE_ENV !== 'production';
 
         console.log(`🔧 Initializing Firebase Admin SDK (${isAppHosting ? 'App Hosting' : isLocalDev ? 'Local Dev' : 'Production'})`);
+        console.log(`🔧 Using project ID: ${projectId}`);
+
+        let initConfig = { projectId };
 
         if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
           // Use service account key for local development
           console.log('🔑 Using service account key for authentication');
-          const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-          initializeApp({
-            credential: cert(serviceAccount),
-            projectId,
-          });
+          try {
+            const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+            console.log(`🔑 Service account project_id: ${serviceAccount.project_id}`);
+            console.log(`🔑 Service account client_email: ${serviceAccount.client_email}`);
+            initConfig.credential = cert(serviceAccount);
+          } catch (parseError) {
+            console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:', parseError);
+            throw new Error(`Invalid FIREBASE_SERVICE_ACCOUNT_KEY: ${parseError.message}`);
+          }
         } else if (isAppHosting) {
           // Use default credentials in App Hosting (automatic service account)
-          console.log('🏠 Using App Hosting default credentials');
-          initializeApp({
-            projectId,
-          });
+          console.log('🏠 Using App Hosting default credentials (no explicit credential)');
+          // Don't set credential - let Firebase use default service account
         } else {
           // Fallback for other production environments
           console.log('☁️  Using default application credentials');
-          initializeApp({
-            projectId,
-          });
+          // Don't set credential - let Firebase use default application credentials
         }
+
+        console.log('🔧 Calling initializeApp with config:', JSON.stringify({
+          projectId: initConfig.projectId,
+          hasCredential: !!initConfig.credential
+        }, null, 2));
+
+        initializeApp(initConfig);
+        console.log('✅ Firebase app initialized successfully');
+      } else {
+        console.log('🔧 Firebase app already initialized, using existing instance');
       }
 
+      console.log('🔧 Getting Firebase Auth instance...');
       this.adminAuth = getAuth();
+      console.log('✅ Firebase Auth instance obtained');
+
       this.initialized = true;
       console.log('✅ Firebase Admin SDK initialized successfully');
       
     } catch (error) {
-      console.error('❌ Failed to initialize Firebase Admin SDK:', error);
+      const errorDetails = {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+        name: error.name
+      };
+      
+      console.error('❌ Failed to initialize Firebase Admin SDK - Detailed Error:', JSON.stringify(errorDetails, null, 2));
       
       // In App Hosting, we want to be more resilient to auth failures
       if (this.isAppHostingEnvironment()) {
@@ -82,7 +147,10 @@ class AuthenticationService {
         return Promise.resolve();
       }
       
-      throw error;
+      // Re-throw with more context
+      const contextualError = new Error(`Firebase Admin SDK failed to initialize: ${error.message}`);
+      contextualError.originalError = error;
+      throw contextualError;
     }
 
     return Promise.resolve();

@@ -284,16 +284,32 @@ function createAsyncInitManager() {
   // Register Firebase Admin SDK initialization
   manager.registerService('firebase-admin', async () => {
     const { authService } = require('./firebase-admin');
-    await authService.initialize();
     
-    // Verify initialization worked
-    if (!authService.initialized) {
-      throw new Error('Firebase Admin SDK failed to initialize');
+    try {
+      await authService.initialize();
+      
+      // Verify initialization worked
+      if (!authService.initialized) {
+        throw new Error('Firebase Admin SDK initialization completed but service not marked as initialized');
+      }
+      
+      console.log('✅ Firebase Admin SDK background initialization successful');
+    } catch (error) {
+      console.error('❌ Firebase Admin SDK background initialization failed:', error.message);
+      
+      // For App Hosting environments, don't fail the entire initialization
+      if (authService.isAppHostingEnvironment()) {
+        console.warn('⚠️  Continuing without Firebase Admin SDK in App Hosting environment');
+        return; // Don't throw - allow graceful degradation
+      }
+      
+      // Re-throw for other environments
+      throw error;
     }
   }, {
-    timeout: 15000,
+    timeout: 20000, // Increased timeout for better diagnostics
     required: false, // Not required for server startup
-    maxRetries: 2,
+    maxRetries: 1, // Reduced retries since we have better error handling
   });
 
   // Register health checks
