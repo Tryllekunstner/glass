@@ -138,12 +138,25 @@ async function healthCheckWithAuth() {
     // Try to import and check Firebase Admin
     const { healthCheck, authService } = require('./firebase-admin');
     
-    // Initialize the auth service first
+    // Initialize the auth service first with timeout
+    const initTimeout = parseInt(process.env.AUTH_INITIALIZATION_TIMEOUT, 10) || 30000;
+    
     try {
-      authService.initialize();
+      // Add timeout to initialization
+      const initPromise = Promise.resolve(authService.initialize());
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Auth initialization timeout')), initTimeout)
+      );
+      
+      await Promise.race([initPromise, timeoutPromise]);
     } catch (initError) {
       console.warn('⚠️  Firebase Admin SDK initialization failed:', initError.message);
-      return true; // Graceful degradation
+      // For permission errors, log more details but continue
+      if (initError.message.includes('serviceusage.serviceUsageConsumer')) {
+        console.error('❌ Missing IAM role: roles/serviceusage.serviceUsageConsumer');
+        console.error('   Add this role to: firebase-app-hosting-compute@getseerai.iam.gserviceaccount.com');
+      }
+      return true; // Graceful degradation - don't block server startup
     }
     
     // Check if Firebase Admin SDK is initialized
@@ -152,19 +165,30 @@ async function healthCheckWithAuth() {
       return true; // Graceful degradation
     }
     
-    const isHealthy = await healthCheck();
+    // Add timeout to health check
+    const healthTimeout = 10000; // 10 seconds
+    const healthPromise = healthCheck();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Health check timeout')), healthTimeout)
+    );
     
-    if (isHealthy) {
-      console.log('✅ Firebase Admin SDK health check passed');
-      return true;
-    } else {
-      console.warn('⚠️  Firebase Admin SDK health check failed');
+    try {
+      const isHealthy = await Promise.race([healthPromise, timeoutPromise]);
+      
+      if (isHealthy) {
+        console.log('✅ Firebase Admin SDK health check passed');
+        return true;
+      } else {
+        console.warn('⚠️  Firebase Admin SDK health check failed');
+        return true; // Still allow server to start
+      }
+    } catch (healthError) {
+      console.warn('⚠️  Firebase Admin SDK health check timed out or failed:', healthError.message);
       return true; // Still allow server to start
     }
 
   } catch (error) {
     console.warn('⚠️  Firebase Admin SDK not available:', error.message);
-    console.warn('Stack trace:', error.stack);
     // Return true for graceful degradation - server can start without auth
     return true;
   }

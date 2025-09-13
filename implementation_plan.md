@@ -1,104 +1,108 @@
 # Implementation Plan
 
-Fix Firebase App Hosting environment variable mapping to resolve deployment failures by extracting configuration from Firebase's native JSON format.
+Fix Firebase App Hosting deployment issues including container startup failures, authentication permission errors, and optimize the Next.js application for Cloud Run deployment.
 
-## Overview
-
-The deployment is failing because Firebase App Hosting provides environment variables in `FIREBASE_CONFIG` and `FIREBASE_WEBAPP_CONFIG` JSON format, but the application expects individual `NEXT_PUBLIC_*` variables. The solution is to update the configuration utilities to extract values from Firebase's JSON format while maintaining backward compatibility with individual variables for local development.
+The current deployment is failing due to multiple issues: the Firebase service account lacks proper permissions, the container fails to start within the allocated timeout, and the Firebase Admin SDK cannot initialize properly. This plan addresses each issue systematically to ensure successful deployment and operation in Firebase App Hosting environment.
 
 ## Types
 
-Update environment configuration types to support both Firebase JSON format and individual variables.
+Update Firebase service account permissions and container configuration types.
 
-```typescript
-interface FirebaseConfig {
-  projectId: string;
-  storageBucket: string;
-  databaseURL?: string;
-}
+**Service Account Permission Requirements:**
+- `roles/serviceusage.serviceUsageConsumer` - Required for Firebase Auth API access
+- `firebase-app-hosting-compute@getseerai.iam.gserviceaccount.com` - Default service account
 
-interface FirebaseWebappConfig {
-  apiKey: string;
-  authDomain: string;
-  projectId: string;
-  storageBucket: string;
-  messagingSenderId: string;
-  appId: string;
-  measurementId?: string;
-}
+**Container Configuration:**
+- Port: 8080 (fixed)
+- Memory: 512Mi
+- CPU: 1.00
+- Startup timeout: Extended to handle Firebase initialization
+- Health check timeout: Extended for authentication service
 
-interface EnvironmentConfig {
-  NODE_ENV: string;
-  NEXT_PUBLIC_FIREBASE_API_KEY: string;
-  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: string;
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID: string;
-  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: string;
-  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: string;
-  NEXT_PUBLIC_FIREBASE_APP_ID: string;
-  NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: string;
-  NEXT_PUBLIC_API_URL: string;
-  NEXT_PUBLIC_ENABLE_ANALYTICS: string;
-  NEXT_PUBLIC_ENABLE_DEBUG: string;
-}
-```
+**Environment Variables:**
+- `FIREBASE_CONFIG` - Provided by App Hosting (basic config)
+- `FIREBASE_WEBAPP_CONFIG` - Provided by App Hosting (full client config)
+- `PORT=8080` - Container port
+- `NODE_ENV=production` - Production environment
 
 ## Files
 
-Modify existing configuration files to support Firebase App Hosting's native environment variable format.
+Modify existing configuration and server files to fix deployment issues.
 
-**Modified files:**
-- `pickleglass_web/utils/config.ts` - Update to extract from Firebase JSON configs
-- `pickleglass_web/server/utils/firebase-admin.js` - Update to use extracted project ID
-- `pickleglass_web/server/utils/startup-health.js` - Update environment validation
-- `pickleglass_web/lib/firebase-admin.ts` - Update to use extracted project ID
+**Files to be modified:**
+- `apphosting.yaml` - Update container configuration and timeouts
+- `pickleglass_web/next.config.js` - Enable standalone output for optimal Cloud Run deployment
+- `pickleglass_web/server/utils/firebase-admin.js` - Improve error handling and graceful degradation
+- `pickleglass_web/server/utils/startup-health.js` - Extend timeouts and improve resilience
+- `pickleglass_web/server.js` - Optimize startup sequence and error handling
 
-**Configuration files to update:**
-- `apphosting.yaml` - Remove redundant individual environment variables
-- `pickleglass_web/.env.apphosting` - Simplify to only necessary overrides
+**Files to be created:**
+- `FIREBASE_IAM_SETUP.md` - Documentation for setting up proper IAM permissions
+- `pickleglass_web/server/utils/cloud-run-health.js` - Cloud Run specific health checks
 
 ## Functions
 
-Update configuration extraction and validation functions to support Firebase's JSON format.
-
-**New functions:**
-- `extractFirebaseConfig()` - Extract values from FIREBASE_CONFIG JSON
-- `extractFirebaseWebappConfig()` - Extract values from FIREBASE_WEBAPP_CONFIG JSON
-- `getEnvironmentConfig()` - Unified config getter with fallback logic
+Enhance startup and health check functions for better Cloud Run compatibility.
 
 **Modified functions:**
-- `validateEnvironmentConfig()` - Update validation for new extraction logic
-- `getFirebaseConfig()` - Update to use extracted values
-- `validateAppHostingEnvironment()` - Update to check for Firebase JSON configs
+- `startServer()` in `server.js` - Add better error handling and startup sequencing
+- `validateAppHostingEnvironment()` in `startup-health.js` - Improve environment validation
+- `healthCheckWithAuth()` in `startup-health.js` - Add graceful degradation for auth failures
+- `AuthenticationService.initialize()` in `firebase-admin.js` - Better error handling for permission issues
+
+**New functions:**
+- `validateCloudRunEnvironment()` - Cloud Run specific environment validation
+- `createCloudRunHealthChecker()` - Health checker optimized for Cloud Run
+- `gracefulAuthDegradation()` - Handle auth service failures gracefully
 
 ## Classes
 
-No new classes required. Existing configuration classes will be updated to use the new extraction functions.
+Update existing service classes for better Cloud Run deployment compatibility.
 
 **Modified classes:**
-- `AuthenticationService` - Update to use extracted project ID from new config system
+- `AuthenticationService` in `firebase-admin.js` - Enhanced error handling and permission checking
+- `StartupHealthChecker` in `startup-health.js` - Extended timeouts and better failure handling
+
+**Enhanced error handling:**
+- Graceful degradation when Firebase Admin SDK fails to initialize
+- Better logging for permission-related errors
+- Timeout handling for slow Cloud Run startups
 
 ## Dependencies
 
-No new dependencies required. The solution uses existing JSON parsing capabilities and maintains current Firebase SDK versions.
+No new dependencies required - focus on configuration and deployment optimization.
+
+**Configuration changes:**
+- Next.js standalone output enabled
+- Extended container timeouts
+- Improved health check intervals
+
+**Firebase service account permissions:**
+- Add `roles/serviceusage.serviceUsageConsumer` role
+- Verify `firebase-app-hosting-compute@getseerai.iam.gserviceaccount.com` has proper permissions
 
 ## Testing
 
-Update existing tests to cover both Firebase JSON format and individual variable fallback scenarios.
+Update health checks and add Cloud Run specific validation.
 
-**Test updates:**
-- `pickleglass_web/__tests__/firebase.test.ts` - Add tests for JSON config extraction
-- `pickleglass_web/__tests__/config.test.ts` - Add tests for environment config extraction
+**Modified test approaches:**
+- Extended startup health check timeouts
+- Graceful handling of Firebase Admin SDK initialization failures
+- Better error reporting for permission issues
 
-**New test scenarios:**
-- Firebase App Hosting JSON format parsing
-- Fallback to individual variables for local development
-- Error handling for malformed JSON configs
+**New validation:**
+- Cloud Run environment detection
+- Service account permission validation
+- Container startup sequence optimization
 
 ## Implementation Order
 
-1. Update `utils/config.ts` with Firebase JSON extraction logic
-2. Update Firebase Admin SDK initialization files
-3. Update startup health checks
-4. Update environment files and App Hosting configuration
-5. Update tests to cover new functionality
-6. Test deployment to verify fix
+Sequential steps to fix deployment issues while maintaining system stability.
+
+1. **Update IAM Permissions** - Add required service account roles
+2. **Optimize Next.js Configuration** - Enable standalone output and container optimizations
+3. **Enhance Error Handling** - Improve Firebase Admin SDK initialization and graceful degradation
+4. **Extend Container Timeouts** - Update apphosting.yaml with longer startup timeouts
+5. **Improve Health Checks** - Make startup validation more resilient to temporary failures
+6. **Update Server Startup** - Optimize server.js startup sequence for Cloud Run
+7. **Test Deployment** - Verify fixes resolve the container startup and authentication issues
