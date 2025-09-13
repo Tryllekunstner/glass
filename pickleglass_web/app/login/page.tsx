@@ -48,16 +48,31 @@ export default function LoginPage() {
         }
         
         const idToken = await firebaseUser.getIdToken()
-        
-        const deepLinkUrl = `pickleglass://auth-success?` + new URLSearchParams({
-          uid: user.uid,
-          email: user.email || '',
-          displayName: user.display_name || '',
-          token: idToken
-        }).toString()
-        
-        console.log('🔗 Return to electron app via deep link:', deepLinkUrl)
-        navigateToUrl(deepLinkUrl)
+
+        // Build deep link via server to include a cryptographic nonce (Phase 1 hardening)
+        const returnTo = (searchParams.get('returnUrl') || '/') as string;
+        const cn = (searchParams.get('cn') || undefined) as string | undefined;
+
+        const resp = await fetch('/api/auth/deep-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'auth-success',
+            token: idToken,
+            returnTo,
+            // Propagate client nonce (cn) so server deep link includes it for desktop verification
+            extra: cn ? { cn } : undefined,
+          }),
+        });
+
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(`Deep link generation failed: ${resp.status} ${text}`);
+        }
+
+        const data = await resp.json() as { url: string; nonce: string };
+        console.log('🔗 Return to electron app via deep link (server-generated):', data.url)
+        navigateToUrl(data.url)
         
       } catch (error) {
         console.error('❌ Deep link processing failed:', error)

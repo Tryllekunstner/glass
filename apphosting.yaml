@@ -1,10 +1,10 @@
 # Firebase App Hosting configuration with fast startup optimizations
 runConfig:
   cpu: 1
-  memory: 512Mi
-  maxInstances: 10
-  minInstances: 0
-  concurrency: 80
+  memory: 1Gi
+  maxInstances: 20
+  minInstances: 2
+  concurrency: 120
   env:
     # Core server configuration
     - variable: PORT
@@ -13,6 +13,12 @@ runConfig:
       value: "production"
     - variable: FIREBASE_APP_HOSTING
       value: "true"
+    - variable: REGION
+      value: "europe-west1"
+    - variable: FIREBASE_REGION
+      value: "europe-west1"
+    - variable: GOOGLE_CLOUD_REGION
+      value: "europe-west1"
     
     # Fast startup configuration
     - variable: FAST_STARTUP

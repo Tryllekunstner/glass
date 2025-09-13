@@ -1,5 +1,6 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 
 // Types for server-side authentication
 export interface VerifiedUser {
@@ -7,6 +8,7 @@ export interface VerifiedUser {
   email: string;
   displayName?: string;
   emailVerified: boolean;
+  roles?: string[]; // optional custom claims roles
 }
 
 // Initialize Firebase Admin SDK
@@ -49,6 +51,7 @@ initializeFirebaseAdmin();
 
 // Get Auth instance (only if Firebase was initialized)
 export const adminAuth = getApps().length > 0 ? getAuth() : null;
+export const adminDb = getApps().length > 0 ? getFirestore() : null;
 
 /**
  * Verify a Firebase ID token and return user information
@@ -63,12 +66,27 @@ export async function verifyAuthToken(token: string): Promise<VerifiedUser | nul
 
   try {
     const decodedToken = await adminAuth.verifyIdToken(token);
-    
+    // Try to pick roles from token or fetch user for customClaims
+    let roles: string[] | undefined = undefined;
+    const tokenRoles = (decodedToken as any)?.roles;
+    if (Array.isArray(tokenRoles)) {
+      roles = tokenRoles as string[];
+    } else {
+      try {
+        const userRecord = await adminAuth.getUser(decodedToken.uid);
+        const ccRoles = (userRecord.customClaims as any)?.roles;
+        if (Array.isArray(ccRoles)) roles = ccRoles as string[];
+      } catch {
+        // ignore
+      }
+    }
+
     return {
       uid: decodedToken.uid,
       email: decodedToken.email || '',
       displayName: decodedToken.name,
       emailVerified: decodedToken.email_verified || false,
+      roles,
     };
   } catch (error) {
     console.error('Error verifying auth token:', error);
@@ -89,12 +107,13 @@ export async function getUserByUid(uid: string): Promise<VerifiedUser | null> {
 
   try {
     const userRecord = await adminAuth.getUser(uid);
-    
+    const roles = (userRecord.customClaims as any)?.roles;
     return {
       uid: userRecord.uid,
       email: userRecord.email || '',
       displayName: userRecord.displayName,
       emailVerified: userRecord.emailVerified,
+      roles: Array.isArray(roles) ? (roles as string[]) : undefined,
     };
   } catch (error) {
     console.error('Error getting user by UID:', error);

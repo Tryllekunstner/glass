@@ -20,6 +20,7 @@ const authService = require('./features/common/services/authService');
 const path = require('node:path');
 const express = require('express');
 const fetch = require('node-fetch');
+const crypto = require('node:crypto');
 const { autoUpdater } = require('electron-updater');
 const { EventEmitter } = require('events');
 const askService = require('./features/ask/askService');
@@ -44,6 +45,25 @@ const ollamaModelRepository = require('./features/common/repositories/ollamaMode
 
 // Native deep link handling - cross-platform compatible
 let pendingDeepLinkUrl = null;
+
+// Deep-link hardening: throttle + dedupe
+const DEEP_LINK_COOLDOWN_MS = 3000;
+let lastAuthLinkAt = 0;
+const recentDeepLinkDigests = new Set();
+
+function digestToken(token) {
+    try {
+        return crypto.createHash('sha256').update(String(token)).digest('hex').slice(0, 16);
+    } catch (_) {
+        return null;
+    }
+}
+
+function isValidJwt(token) {
+    if (typeof token !== 'string') return false;
+    if (token.length < 200 || token.length > 6000) return false;
+    return /^[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+$/.test(token);
+}
 
 function setupProtocolHandling() {
     // Protocol registration - must be done before app is ready
@@ -509,49 +529,110 @@ async function handleCustomUrl(url) {
 
 async function handleFirebaseAuthCallback(params) {
     const userRepository = require('./features/common/repositories/user');
-    const { token: idToken } = params;
+    const cn = params?.cn ? String(params.cn) : null;
+    const srvNonce = params?.nonce ? String(params.nonce) : null;
+    const idToken = params?.token ? String(params.token) : null;
 
+    // Correlated logging without leaking sensitive data
+    const corr = srvNonce ? ` nonce=${srvNonce}` : '';
+    const clientCorr = cn ? ` cn=${cn}` : '';
+
+    // Validate presence
     if (!idToken) {
-        console.error('[Auth] Firebase auth callback is missing ID token.');
-        // No need to send IPC, the UI won't transition without a successful auth state change.
+        console.error(`[Auth] Missing ID token in deep link.${corr}${clientCorr}`);
         return;
     }
 
-    console.log('[Auth] Received ID token from deep link, exchanging for custom token...');
+    // Nonce verification (Phase 1): must match the client-generated nonce
+    if (!cn || !authService.verifyAndConsumeClientNonce(cn)) {
+        console.warn(`[Auth] Deep link client nonce verification failed.${corr}${clientCorr}`);
+        return;
+    }
 
-    try {
+    // Throttle handling to avoid rapid successive processing
+    const now = Date.now();
+    if (now - lastAuthLinkAt < DEEP_LINK_COOLDOWN_MS) {
+        console.warn(`[Auth] Deep link handling throttled (${now - lastAuthLinkAt}ms since last).${corr}${clientCorr}`);
+        return;
+    }
+    lastAuthLinkAt = now;
+
+    // Validate token shape and length (JWT)
+    if (!isValidJwt(idToken)) {
+        console.error(`[Auth] ID token failed validation (malformed or unexpected length).${corr}${clientCorr}`);
+        return;
+    }
+
+    // Duplicate suppression (avoid reprocessing same token)
+    const digest = digestToken(idToken);
+    if (digest && recentDeepLinkDigests.has(digest)) {
+        console.warn(`[Auth] Duplicate deep link token ignored (digest=${digest}).${corr}${clientCorr}`);
+        return;
+    }
+    if (digest) {
+        recentDeepLinkDigests.add(digest);
+        // Auto-expire entry after 10 minutes to avoid unbounded growth
+        setTimeout(() => recentDeepLinkDigests.delete(digest), 10 * 60 * 1000).unref?.();
+    }
+
+    console.log(`[Auth] Exchanging ID token for custom token...${corr}${clientCorr}`);
+
+    // Helper to exchange with retry-once on transient errors
+    async function exchangeIdToken(token) {
         const functionUrl = 'https://us-west1-pickle-3651a.cloudfunctions.net/pickleGlassAuthCallback';
-        const response = await fetch(functionUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: idToken })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok || !data.success) {
-            throw new Error(data.error || 'Failed to exchange token.');
-        }
-
-        const { customToken, user } = data;
-        console.log('[Auth] Successfully received custom token for user:', user.uid);
-
-        const firebaseUser = {
-            uid: user.uid,
-            email: user.email || 'no-email@example.com',
-            displayName: user.name || 'User',
-            photoURL: user.picture
+        const attempt = async () => {
+            const response = await fetch(functionUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token })
+            });
+            let data = {};
+            try {
+                data = await response.json();
+            } catch (_) {
+                // keep empty
+            }
+            if (!response.ok || !data.success) {
+                const err = new Error(data.error || `Token exchange failed (HTTP ${response.status})`);
+                err.status = response.status;
+                throw err;
+            }
+            return data;
         };
 
-        // 1. Sync user data to local DB
-        userRepository.findOrCreate(firebaseUser);
-        console.log('[Auth] User data synced with local DB.');
+        try {
+            return await attempt();
+        } catch (e) {
+            // Retry once on 5xx or network errors
+            const status = e?.status;
+            if (!status || (status >= 500 && status <= 599)) {
+                await new Promise(res => setTimeout(res, 800 + Math.floor(Math.random() * 400)));
+                return await attempt();
+            }
+            throw e;
+        }
+    }
+
+    try {
+        const data = await exchangeIdToken(idToken);
+        const { customToken, user } = data;
+        console.log('[Auth] Custom token received; signing in user:', user?.uid);
+
+        const firebaseUser = {
+            uid: user?.uid,
+            email: user?.email || 'no-email@example.com',
+            displayName: user?.name || 'User',
+            photoURL: user?.picture
+        };
+
+        // 1. Sync user data to local DB (fire and forget)
+        try { userRepository.findOrCreate(firebaseUser); } catch (_) {}
 
         // 2. Sign in using the authService in the main process
         await authService.signInWithCustomToken(customToken);
-        console.log('[Auth] Main process sign-in initiated. Waiting for onAuthStateChanged...');
+        console.log('[Auth] Sign-in with custom token initiated. Awaiting onAuthStateChanged...');
 
-        // 3. Focus the app window
+        // 3. Safe focus after success
         const { windowPool } = require('./window/windowManager.js');
         const header = windowPool.get('header');
         if (header) {
@@ -560,15 +641,12 @@ async function handleFirebaseAuthCallback(params) {
         } else {
             console.error('[Auth] Header window not found after auth callback.');
         }
-        
     } catch (error) {
-        console.error('[Auth] Error during custom token exchange or sign-in:', error);
-        // The UI will not change, and the user can try again.
-        // Optionally, send a generic error event to the renderer.
+        console.error(`[Auth] Error during token exchange or sign-in: ${error?.message || error}`);
         const { windowPool } = require('./window/windowManager.js');
         const header = windowPool.get('header');
         if (header) {
-            header.webContents.send('auth-failed', { message: error.message });
+            header.webContents.send('auth-failed', { message: 'Authentication failed. Please try again.' });
         }
     }
 }

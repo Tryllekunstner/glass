@@ -10,6 +10,9 @@ const {onDocumentWritten} = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const cors = require("cors")({origin: true});
+const { setGlobalOptions } = require("firebase-functions/v2");
+
+setGlobalOptions({ region: "europe-west1" });
 
 // Initialize Firebase Admin SDK
 admin.initializeApp();
@@ -170,6 +173,18 @@ const authCallbackHandler = (request, response) => {
 };
 
 exports.pickleGlassAuthCallback = onRequest(
-    {region: "us-west1"},
+    {region: "europe-west1"},
     authCallbackHandler,
 );
+
+// Phase 2: device-code endpoints (feature-flag rollout ready)
+// Re-export functions defined in ./deviceCode so Firebase can discover them
+try {
+  const deviceCode = require('./deviceCode');
+  exports.pickleGlassDeviceCodeStart = deviceCode.pickleGlassDeviceCodeStart;
+  exports.pickleGlassDeviceCodePoll = deviceCode.pickleGlassDeviceCodePoll;
+  exports.pickleGlassDeviceCodeComplete = deviceCode.pickleGlassDeviceCodeComplete;
+  logInfo('functions_bootstrap', 'Device-code functions registered');
+} catch (e) {
+  logError('functions_bootstrap', e, { message: 'Device-code functions not registered' });
+}

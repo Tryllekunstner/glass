@@ -137,21 +137,9 @@ async function startServer() {
     // Trust proxy for proper IP detection behind load balancers
     server.set('trust proxy', 1);
 
-    // Request logging middleware
-    server.use((req, res, next) => {
-      const start = Date.now();
-      
-      // Log request
-      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - ${req.ip}`);
-      
-      // Log response when finished
-      res.on('finish', () => {
-        const duration = Date.now() - start;
-        console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - ${res.statusCode} (${duration}ms)`);
-      });
-      
-      next();
-    });
+    // Structured request logging
+    const { attachRequestLogger } = require('./server/utils/logger');
+    server.use(attachRequestLogger());
 
     // Health check endpoints (before authentication)
     // Use optimized health checks for fast startup
@@ -271,6 +259,19 @@ async function startServer() {
 
     // Authentication middleware (this is the key integration)
     server.use(authenticateRequest);
+
+    // Correlation propagation for Next routes:
+    // ensure X-Request-ID/X-Correlation-ID are present on the request headers
+    server.use((req, res, next) => {
+      try {
+        const cid = req.correlationId || req.headers['x-request-id'] || req.headers['x-correlation-id'];
+        if (cid) {
+          if (!req.headers['x-request-id']) req.headers['x-request-id'] = String(cid);
+          if (!req.headers['x-correlation-id']) req.headers['x-correlation-id'] = String(cid);
+        }
+      } catch (_) {}
+      next();
+    });
 
     // Handle all other requests with Next.js (using middleware approach)
     server.use((req, res, next) => {

@@ -287,6 +287,7 @@ export function logConfigurationStatus(includeValues: boolean = false): void {
     
     console.log('🔧 Configuration Status: ✅ Valid');
     console.log(`📍 Environment: ${envConfig.NODE_ENV}`);
+    console.log(`📍 Region: ${getRegion()}`);
     console.log(`🔥 Firebase Project: ${firebaseConfig.projectId}`);
     console.log(`🌐 Auth Domain: ${firebaseConfig.authDomain}`);
     
@@ -360,6 +361,7 @@ export function getConfigurationSummary(): Record<string, any> {
     
     return {
       environment: envConfig.NODE_ENV,
+      region: getRegion(),
       projectId: firebaseConfig.projectId,
       authDomain: firebaseConfig.authDomain,
       hasApiKey: !!firebaseConfig.apiKey,
@@ -396,5 +398,15 @@ export function getFirebaseProjectId(): string | null {
     return firebaseConfigFromJSON.projectId;
   }
 
+  // Fallback to Google Cloud environment variables
+  const gProjectId = process.env.GOOGLE_CLOUD_PROJECT ?? process.env.GCLOUD_PROJECT;
+  if (gProjectId) {
+    return gProjectId;
+  }
+
   return null;
+}
+
+export function getRegion(): string {
+  return process.env.REGION || process.env.FIREBASE_REGION || process.env.GOOGLE_CLOUD_REGION || 'europe-west1';
 }

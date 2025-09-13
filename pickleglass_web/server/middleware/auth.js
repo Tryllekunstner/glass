@@ -40,6 +40,20 @@ const authRateLimit = rateLimit({
  */
 async function authenticateRequest(req, res, next) {
   const startTime = Date.now();
+
+  // Correlation ID propagation
+  try {
+    const crypto = require('crypto');
+    const incomingCid = req.headers['x-correlation-id'] || req.headers['x-request-id'];
+    const generatedCid = typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : crypto.randomBytes(16).toString('hex');
+    const correlationId = incomingCid || generatedCid;
+    req.correlationId = correlationId;
+    res.setHeader('X-Request-ID', String(correlationId));
+  } catch (e) {
+    // no-op
+  }
   
   try {
     // Skip authentication for static files and Next.js internals
@@ -118,6 +132,11 @@ async function performGracefulDegradation(req, res, next, startTime) {
     // Set headers to indicate auth is initializing
     res.setHeader('X-Auth-Status', 'initializing');
     res.setHeader('X-Auth-Mode', 'graceful-degradation');
+    try {
+      const expose = 'X-Auth-Checked, X-Auth-Mode, X-Auth-Duration, Server-Timing, X-Request-ID, X-User-Authenticated, X-Auth-Reason, X-Route-Protected';
+      const prevExposed = res.getHeader('Access-Control-Expose-Headers');
+      res.setHeader('Access-Control-Expose-Headers', prevExposed ? `${prevExposed}, ${expose}` : expose);
+    } catch (_) {}
 
     // Check route protection with graceful degradation
     const routeConfig = shouldProtectRoute(req.path);
@@ -128,6 +147,7 @@ async function performGracefulDegradation(req, res, next, startTime) {
         reason: 'authentication_services_initializing',
         path: req.path 
       });
+      try { res.setHeader('X-Auth-Reason', 'initializing'); } catch (_) {}
 
       if (isApiRequest(req)) {
         return res.status(503).json({
@@ -222,6 +242,18 @@ function createFallbackAuthMiddleware() {
     };
     req.user = null;
 
+    // Propagate auth status headers
+    res.setHeader('X-Auth-Status', 'unavailable');
+    res.setHeader('X-Auth-Mode', 'fallback');
+    if (req.correlationId) {
+      res.setHeader('X-Request-ID', String(req.correlationId));
+    }
+    try {
+      const expose = 'X-Auth-Checked, X-Auth-Mode, X-Auth-Duration, Server-Timing, X-Request-ID, X-User-Authenticated, X-Auth-Reason, X-Route-Protected';
+      const prevExposed = res.getHeader('Access-Control-Expose-Headers');
+      res.setHeader('Access-Control-Expose-Headers', prevExposed ? `${prevExposed}, ${expose}` : expose);
+    } catch (_) {}
+
     // Check route protection with fallback behavior
     const routeConfig = shouldProtectRoute(req.path);
     
@@ -231,6 +263,7 @@ function createFallbackAuthMiddleware() {
         reason: 'authentication_service_unavailable',
         path: req.path 
       });
+      try { res.setHeader('X-Auth-Reason', 'unavailable'); } catch (_) {}
 
       if (isApiRequest(req)) {
         return res.status(503).json({
@@ -308,9 +341,21 @@ async function performAuthentication(req, res, next, startTime) {
 
     // Set user headers for client-side access
     setUserHeaders(res, user);
+    // Auth middleware status headers
+    res.setHeader('X-Auth-Checked', 'true');
+    res.setHeader('X-Auth-Mode', 'normal');
+    if (req.correlationId) {
+      res.setHeader('X-Request-ID', String(req.correlationId));
+    }
+    try {
+      const expose = 'X-Auth-Checked, X-Auth-Mode, X-Auth-Duration, Server-Timing, X-Request-ID, X-User-Authenticated, X-Auth-Reason, X-Route-Protected';
+      const prevExposed = res.getHeader('Access-Control-Expose-Headers');
+      res.setHeader('Access-Control-Expose-Headers', prevExposed ? `${prevExposed}, ${expose}` : expose);
+    } catch (_) {}
 
     // Check route protection
     const routeConfig = shouldProtectRoute(req.path);
+    try { res.setHeader('X-Route-Protected', routeConfig ? 'true' : 'false'); } catch (_) {}
     
     if (routeConfig) {
       // Route requires authentication
@@ -319,6 +364,7 @@ async function performAuthentication(req, res, next, startTime) {
           reason: 'authentication_required',
           path: req.path 
         });
+        try { res.setHeader('X-Auth-Reason', 'authentication_required'); } catch (_) {}
         return handleAuthRedirect(req, res, routeConfig);
       }
 
@@ -336,6 +382,7 @@ async function performAuthentication(req, res, next, startTime) {
             requiredRoles: routeConfig.allowedRoles,
             userRoles 
           });
+          try { res.setHeader('X-Auth-Reason', 'insufficient_permissions'); } catch (_) {}
           
           if (isApiRequest(req)) {
             return res.status(403).json({
@@ -358,8 +405,15 @@ async function performAuthentication(req, res, next, startTime) {
 
     // Log performance metrics
     const duration = Date.now() - startTime;
-    if (duration > 1000) { // Log slow authentication requests
+    try {
+      res.setHeader('X-Auth-Duration', String(duration));
+      const prev = res.getHeader('Server-Timing');
+      const metric = `auth;dur=${duration}`;
+      res.setHeader('Server-Timing', prev ? `${prev}, ${metric}` : metric);
+    } catch (_) {}
+    if (duration > 700) { // Log slow authentication requests
       console.warn(`🐌 Slow authentication: ${duration}ms for ${req.path}`);
+      try { logAuthEvent('auth_slow_path', req, user, { durationMs: duration }); } catch (_) {}
     }
 
     // Continue to Next.js

@@ -48,7 +48,24 @@ const PROTECTED_ROUTES = {
     allowedRoles: [],
     redirectTo: null,
   },
+  // New protected APIs
+  '/api/device': {
+    requireAuth: true,
+    allowedRoles: [],
+    redirectTo: null,
+  },
+  '/api/agent-configs': {
+    requireAuth: true,
+    allowedRoles: [],
+    redirectTo: null,
+  },
   '/api/activity': {
+    requireAuth: true,
+    allowedRoles: [],
+    redirectTo: null,
+  },
+  // Phase 2 device-code flow (web completion endpoint)
+  '/api/device-code': {
     requireAuth: true,
     allowedRoles: [],
     redirectTo: null,

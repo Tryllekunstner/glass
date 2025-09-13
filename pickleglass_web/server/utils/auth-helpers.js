@@ -121,6 +121,7 @@ function isApiRequest(req) {
  * @param {Object} metadata - Additional metadata
  */
 function logAuthEvent(event, req, user = null, metadata = {}) {
+  const cid = req.correlationId || req.headers['x-request-id'] || req.headers['x-correlation-id'] || null;
   const logData = {
     event,
     timestamp: new Date().toISOString(),
@@ -128,6 +129,7 @@ function logAuthEvent(event, req, user = null, metadata = {}) {
     userAgent: req.headers['user-agent'],
     path: req.path,
     method: req.method,
+    cid,
     userId: user ? user.uid : null,
     userEmail: user ? user.email : null,
     ...metadata,
