@@ -16,15 +16,5 @@
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
-  },
-  "hosting": {
-    "_comment": "Firebase Hosting disabled - using Firebase App Hosting instead",
-    "_disabled": true,
-    "public": "pickleglass_web/out",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ]
   }
 }

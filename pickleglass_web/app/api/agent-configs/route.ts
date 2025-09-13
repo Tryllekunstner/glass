@@ -18,34 +18,43 @@ function makeResponse(request: NextRequest, body: any, init?: ResponseInit) {
   return res;
 }
 
-async function requireUser(request: NextRequest): Promise<{ user: VerifiedUser | null; errorRes: NextResponse | null }> {
+type AuthResult = { ok: true; user: VerifiedUser } | { ok: false; res: NextResponse };
+
+async function requireUser(request: NextRequest): Promise<AuthResult> {
   const cookieStore = cookies();
   const token = cookieStore.get('authToken')?.value;
 
   if (!token) {
-    return { user: null, errorRes: makeResponse(request, {
-      success: false,
-      error: 'authentication_required',
-      message: 'Authentication token not found',
-    }, { status: 401 }) };
+    return {
+      ok: false,
+      res: makeResponse(request, {
+        success: false,
+        error: 'authentication_required',
+        message: 'Authentication token not found',
+      }, { status: 401 })
+    };
   }
 
   const user = await verifyAuthToken(token);
   if (!user) {
-    return { user: null, errorRes: makeResponse(request, {
-      success: false,
-      error: 'invalid_token',
-      message: 'Invalid or expired token',
-    }, { status: 401 }) };
+    return {
+      ok: false,
+      res: makeResponse(request, {
+        success: false,
+        error: 'invalid_token',
+        message: 'Invalid or expired token',
+      }, { status: 401 })
+    };
   }
 
-  return { user, errorRes: null };
+  return { ok: true, user };
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const { user, errorRes } = await requireUser(request);
-    if (!user) return errorRes;
+    const auth = await requireUser(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
 
     const url = new URL(request.url);
     const orgId = (url.searchParams.get('orgId') || '').trim() || null;
@@ -72,8 +81,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { user, errorRes } = await requireUser(request);
-    if (!user) return errorRes;
+    const auth = await requireUser(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
 
     let payload: unknown;
     try {

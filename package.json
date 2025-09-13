@@ -6,9 +6,18 @@
   "scripts": {
     "start": "cd pickleglass_web && npm start",
     "build": "cd pickleglass_web && npm run build",
-    "install": "cd pickleglass_web && npm ci"
+    "install": "cd pickleglass_web && npm ci",
+    "start:dev": "cd pickleglass_web && npm run dev",
+    "build:web": "cd pickleglass_web && npm run build",
+    "serve:firebase": "firebase emulators:start --only functions,firestore",
+    "validate:serverside": "node server-side-validation.js",
+    "deploy:apphosting": "firebase apphosting:deploy",
+    "logs:apphosting": "firebase apphosting:logs"
   },
   "dependencies": {},
+  "devDependencies": {
+    "cross-env": "^7.0.3"
+  },
   "engines": {
     "node": ">=18.0.0"
   }

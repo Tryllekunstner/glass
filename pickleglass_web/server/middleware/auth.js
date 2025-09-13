@@ -158,53 +158,10 @@ async function performGracefulDegradation(req, res, next, startTime) {
         });
       }
 
-      // For browser requests, show a loading page or redirect to login with message
-      return res.status(503).send(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Loading...</title>
-            <meta http-equiv="refresh" content="3">
-            <style>
-              body { 
-                font-family: Arial, sans-serif; 
-                margin: 40px; 
-                text-align: center; 
-                background: #f5f5f5;
-              }
-              .loading { 
-                background: white; 
-                padding: 40px; 
-                border-radius: 10px; 
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                max-width: 500px; 
-                margin: 100px auto; 
-              }
-              .spinner {
-                border: 4px solid #f3f3f3;
-                border-top: 4px solid #3498db;
-                border-radius: 50%;
-                width: 40px;
-                height: 40px;
-                animation: spin 2s linear infinite;
-                margin: 20px auto;
-              }
-              @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-              }
-            </style>
-          </head>
-          <body>
-            <div class="loading">
-              <div class="spinner"></div>
-              <h2>Starting up...</h2>
-              <p>Authentication services are initializing. This page will refresh automatically.</p>
-              <p><small>If this takes too long, please <a href="javascript:window.location.reload()">refresh manually</a>.</small></p>
-            </div>
-          </body>
-        </html>
-      `);
+      // For browser requests, redirect to startup page while services initialize
+      try { res.setHeader('Retry-After', '5'); } catch (_) {}
+      const returnUrl = encodeURIComponent(req.originalUrl || req.path || '/');
+      return res.redirect(302, `/startup?returnUrl=${returnUrl}`);
     }
 
     // Public route, continue with graceful degradation

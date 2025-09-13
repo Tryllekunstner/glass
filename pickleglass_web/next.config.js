@@ -36,7 +36,6 @@ const nextConfig = {
   },
 
   // Use custom server instead of standalone
-  // output: 'standalone', // Disabled for custom Express server
 
   // Compiler optimizations
   compiler: {

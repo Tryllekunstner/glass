@@ -22,14 +22,16 @@ function makeResponse(request: NextRequest, body: any, init?: ResponseInit) {
   return res;
 }
 
-async function requireUser(request: NextRequest): Promise<{ user: VerifiedUser | null; errorRes: NextResponse | null }> {
+type AuthResult = { ok: true; user: VerifiedUser } | { ok: false; res: NextResponse };
+
+async function requireUser(request: NextRequest): Promise<AuthResult> {
   const cookieStore = cookies();
   const token = cookieStore.get('authToken')?.value;
 
   if (!token) {
     return {
-      user: null,
-      errorRes: makeResponse(
+      ok: false,
+      res: makeResponse(
         request,
         {
           success: false,
@@ -44,8 +46,8 @@ async function requireUser(request: NextRequest): Promise<{ user: VerifiedUser |
   const user = await verifyAuthToken(token);
   if (!user) {
     return {
-      user: null,
-      errorRes: makeResponse(
+      ok: false,
+      res: makeResponse(
         request,
         {
           success: false,
@@ -57,7 +59,7 @@ async function requireUser(request: NextRequest): Promise<{ user: VerifiedUser |
     };
   }
 
-  return { user, errorRes: null };
+  return { ok: true, user };
 }
 
 function hasOrgAdminRole(roles?: string[] | null): boolean {
@@ -79,8 +81,9 @@ async function getUserOrgId(uid: string): Promise<string | null> {
 
 export async function GET(request: NextRequest, context: { params: { id: string } }) {
   try {
-    const { user, errorRes } = await requireUser(request);
-    if (!user) return errorRes;
+    const auth = await requireUser(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
 
     const id = context.params.id;
     const record = await getAgentConfig(id);
@@ -128,8 +131,9 @@ export async function GET(request: NextRequest, context: { params: { id: string 
 
 export async function PUT(request: NextRequest, context: { params: { id: string } }) {
   try {
-    const { user, errorRes } = await requireUser(request);
-    if (!user) return errorRes;
+    const auth = await requireUser(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
 
     const id = context.params.id;
 
@@ -198,8 +202,9 @@ export async function PUT(request: NextRequest, context: { params: { id: string 
 
 export async function DELETE(request: NextRequest, context: { params: { id: string } }) {
   try {
-    const { user, errorRes } = await requireUser(request);
-    if (!user) return errorRes;
+    const auth = await requireUser(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
 
     const id = context.params.id;
 
