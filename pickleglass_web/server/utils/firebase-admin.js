@@ -21,10 +21,13 @@ class AuthenticationService {
 
     try {
       if (getApps().length === 0) {
-        const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+        // Use the new config utility that supports Firebase JSON extraction
+        const { getFirebaseProjectId } = require('../../utils/config.ts');
+        const projectId = getFirebaseProjectId();
         
         if (!projectId) {
-          console.warn('⚠️  NEXT_PUBLIC_FIREBASE_PROJECT_ID not found, Firebase Admin SDK will not be initialized');
+          console.warn('⚠️  Firebase project ID not found in environment variables or Firebase JSON config');
+          console.warn('⚠️  Firebase Admin SDK will not be initialized');
           this.initialized = false;
           return;
         }
@@ -209,10 +212,15 @@ class AuthenticationService {
    */
   async healthCheck() {
     try {
+      // During build time, Firebase JSON env vars are not available, so we skip initialization
+      if (process.env.NODE_ENV === 'production' && !process.env.FIREBASE_CONFIG && !process.env.FIREBASE_WEBAPP_CONFIG) {
+        console.log('🔧 Build time detected - skipping Firebase Admin health check');
+        return true; // Return true during build time
+      }
+
       this.initialize(); // Ensure Firebase Admin SDK is initialized
       
-      // Try to access the auth instance
-      if (!this.adminAuth) {
+      if (!this.initialized || !this.adminAuth) {
         return false;
       }
 

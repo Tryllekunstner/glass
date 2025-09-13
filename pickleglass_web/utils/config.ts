@@ -1,5 +1,6 @@
 // Environment configuration validation and utilities
 // This module provides type-safe environment variable access and validation
+// Supports both Firebase App Hosting JSON format and individual environment variables
 
 export interface FirebaseConfig {
   apiKey: string;
@@ -26,6 +27,80 @@ export interface EnvironmentConfig {
 }
 
 /**
+ * Extract Firebase configuration from Firebase App Hosting JSON environment variables
+ * @returns Extracted Firebase config or null if not available
+ */
+function extractFirebaseConfigFromJSON(): Partial<FirebaseConfig> | null {
+  try {
+    // Try to extract from FIREBASE_WEBAPP_CONFIG first (contains full client config)
+    if (process.env.FIREBASE_WEBAPP_CONFIG) {
+      const webappConfig = JSON.parse(process.env.FIREBASE_WEBAPP_CONFIG);
+      console.log('🔥 Extracted Firebase config from FIREBASE_WEBAPP_CONFIG');
+      return {
+        apiKey: webappConfig.apiKey,
+        authDomain: webappConfig.authDomain,
+        projectId: webappConfig.projectId,
+        storageBucket: webappConfig.storageBucket,
+        messagingSenderId: webappConfig.messagingSenderId,
+        appId: webappConfig.appId,
+        measurementId: webappConfig.measurementId
+      };
+    }
+
+    // Fallback to FIREBASE_CONFIG (contains basic config)
+    if (process.env.FIREBASE_CONFIG) {
+      const basicConfig = JSON.parse(process.env.FIREBASE_CONFIG);
+      console.log('🔥 Extracted partial Firebase config from FIREBASE_CONFIG');
+      
+      // Generate auth domain from project ID if not provided
+      const authDomain = `${basicConfig.projectId}.firebaseapp.com`;
+      
+      return {
+        projectId: basicConfig.projectId,
+        storageBucket: basicConfig.storageBucket,
+        authDomain: authDomain,
+        // These will need to be provided via individual env vars or defaults
+        apiKey: undefined,
+        messagingSenderId: undefined,
+        appId: undefined,
+        measurementId: undefined
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.warn('⚠️  Failed to parse Firebase JSON config:', error instanceof Error ? error.message : String(error));
+    return null;
+  }
+}
+
+/**
+ * Get environment variable with Firebase JSON fallback
+ * @param envVarName - Individual environment variable name
+ * @param jsonKey - Key in Firebase JSON config
+ * @param firebaseConfig - Extracted Firebase config from JSON
+ * @returns Environment variable value
+ */
+function getEnvWithFirebaseJSONFallback(
+  envVarName: string, 
+  jsonKey: keyof FirebaseConfig, 
+  firebaseConfig: Partial<FirebaseConfig> | null
+): string | undefined {
+  // First try individual environment variable
+  const envValue = process.env[envVarName];
+  if (envValue) {
+    return envValue;
+  }
+
+  // Fallback to Firebase JSON config
+  if (firebaseConfig && firebaseConfig[jsonKey]) {
+    return firebaseConfig[jsonKey];
+  }
+
+  return undefined;
+}
+
+/**
  * Helper function to get the actual value for a given environment variable
  * Used for generating helpful error messages with correct values
  */
@@ -44,10 +119,14 @@ function getActualValueForVar(varName: string): string {
 
 /**
  * Validates that all required environment variables are present and non-empty
+ * Supports both Firebase App Hosting JSON format and individual environment variables
  * @returns Validated environment configuration
  * @throws Error if any required environment variables are missing
  */
 export function validateEnvironmentConfig(): EnvironmentConfig {
+  // Extract Firebase config from JSON environment variables first
+  const firebaseConfigFromJSON = extractFirebaseConfigFromJSON();
+  
   const requiredVars = [
     'NEXT_PUBLIC_FIREBASE_API_KEY',
     'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
@@ -59,26 +138,83 @@ export function validateEnvironmentConfig(): EnvironmentConfig {
 
   const missingVars: string[] = [];
   const invalidVars: string[] = [];
+  const extractedValues: Record<string, string> = {};
 
-  // Check for missing or empty required variables
+  // Check for missing or empty required variables with Firebase JSON fallback
   for (const varName of requiredVars) {
-    const value = process.env[varName];
+    const jsonKeyRaw = varName.replace('NEXT_PUBLIC_FIREBASE_', '').toLowerCase();
+    let mappedJsonKey: keyof FirebaseConfig;
+    
+    // Map environment variable names to Firebase config keys
+    switch (jsonKeyRaw) {
+      case 'api_key':
+        mappedJsonKey = 'apiKey';
+        break;
+      case 'auth_domain':
+        mappedJsonKey = 'authDomain';
+        break;
+      case 'project_id':
+        mappedJsonKey = 'projectId';
+        break;
+      case 'storage_bucket':
+        mappedJsonKey = 'storageBucket';
+        break;
+      case 'messaging_sender_id':
+        mappedJsonKey = 'messagingSenderId';
+        break;
+      case 'app_id':
+        mappedJsonKey = 'appId';
+        break;
+      case 'measurement_id':
+        mappedJsonKey = 'measurementId';
+        break;
+      default:
+        mappedJsonKey = jsonKeyRaw as keyof FirebaseConfig;
+    }
+    
+    const value = getEnvWithFirebaseJSONFallback(varName, mappedJsonKey, firebaseConfigFromJSON);
+    
     if (!value) {
       missingVars.push(varName);
     } else if (value.trim() === '' || value === 'your-api-key-here' || value === 'your-project-id-here') {
       invalidVars.push(varName);
+    } else {
+      extractedValues[varName] = value;
     }
   }
 
+  // If we have Firebase JSON config, show more helpful error messages
   if (missingVars.length > 0) {
-    const errorMessage = `Missing required environment variables: ${missingVars.join(', ')}\n\n` +
-      `🔧 FIREBASE APP HOSTING SETUP REQUIRED:\n` +
-      `Environment variables must be configured in Firebase App Hosting.\n` +
-      `Run these commands to fix:\n\n` +
-      missingVars.map(varName => 
-        `firebase apphosting:env:set ${varName}="<your-value-here>"`
-      ).join('\n') +
-      `\n\nSee FIREBASE_ENV_SETUP.md for complete setup instructions.`;
+    const hasFirebaseJSON = !!firebaseConfigFromJSON;
+    
+    let errorMessage = `❌ Missing required environment variable: ${missingVars.join(', ')}\n\n`;
+    
+    if (hasFirebaseJSON) {
+      errorMessage += `🔥 FIREBASE APP HOSTING DETECTED:\n` +
+        `Firebase App Hosting provides configuration via JSON environment variables,\n` +
+        `but some values are missing from FIREBASE_WEBAPP_CONFIG.\n\n` +
+        `Available from Firebase JSON:\n`;
+      
+      if (firebaseConfigFromJSON) {
+        Object.entries(firebaseConfigFromJSON).forEach(([key, value]) => {
+          if (value) {
+            errorMessage += `  ✅ ${key}: ${value}\n`;
+          }
+        });
+      }
+      
+      errorMessage += `\n🔧 This usually means FIREBASE_WEBAPP_CONFIG is incomplete.\n` +
+        `Check your Firebase App Hosting configuration.`;
+    } else {
+      errorMessage += `🔧 FIREBASE APP HOSTING SETUP REQUIRED:\n` +
+        `Environment variables must be configured in Firebase App Hosting.\n` +
+        `Run these commands to fix:\n\n` +
+        missingVars.map(varName => 
+          `firebase apphosting:env:set ${varName}="<your-value-here>"`
+        ).join('\n') +
+        `\n\nSee FIREBASE_ENV_SETUP.md for complete setup instructions.`;
+    }
+    
     throw new Error(errorMessage);
   }
 
@@ -102,15 +238,20 @@ export function validateEnvironmentConfig(): EnvironmentConfig {
     throw new Error(`Invalid NODE_ENV: ${nodeEnv}. Must be 'development', 'production', or 'test'`);
   }
 
+  // Log successful extraction from Firebase JSON
+  if (firebaseConfigFromJSON) {
+    console.log('✅ Successfully extracted Firebase configuration from App Hosting JSON');
+  }
+
   return {
     NODE_ENV: nodeEnv as 'development' | 'production' | 'test',
-    NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
-    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
-    NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
-    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
-    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
-    NEXT_PUBLIC_FIREBASE_APP_ID: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
-    NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+    NEXT_PUBLIC_FIREBASE_API_KEY: extractedValues.NEXT_PUBLIC_FIREBASE_API_KEY,
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: extractedValues.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID: extractedValues.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: extractedValues.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: extractedValues.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    NEXT_PUBLIC_FIREBASE_APP_ID: extractedValues.NEXT_PUBLIC_FIREBASE_APP_ID,
+    NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: getEnvWithFirebaseJSONFallback('NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID', 'measurementId', firebaseConfigFromJSON),
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_ENABLE_ANALYTICS: process.env.NEXT_PUBLIC_ENABLE_ANALYTICS,
     NEXT_PUBLIC_ENABLE_DEBUG: process.env.NEXT_PUBLIC_ENABLE_DEBUG
@@ -235,4 +376,25 @@ export function getConfigurationSummary(): Record<string, any> {
       environment: process.env.NODE_ENV || 'unknown'
     };
   }
+}
+
+/**
+ * Get Firebase project ID with Firebase JSON fallback
+ * This is a simplified function for Firebase Admin SDK initialization
+ * @returns Firebase project ID or null if not available
+ */
+export function getFirebaseProjectId(): string | null {
+  // First try individual environment variable
+  if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) {
+    return process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  }
+
+  // Fallback to Firebase JSON config
+  const firebaseConfigFromJSON = extractFirebaseConfigFromJSON();
+  if (firebaseConfigFromJSON?.projectId) {
+    console.log('🔥 Using project ID from Firebase App Hosting JSON config');
+    return firebaseConfigFromJSON.projectId;
+  }
+
+  return null;
 }

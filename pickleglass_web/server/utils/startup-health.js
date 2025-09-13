@@ -77,19 +77,30 @@ class StartupHealthChecker {
  */
 async function validateAppHostingEnvironment() {
   try {
-    // Check required environment variables
-    const requiredVars = [
+    // Check basic required environment variables
+    const basicRequiredVars = [
       'NODE_ENV',
       'PORT',
-      'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
     ];
 
-    for (const varName of requiredVars) {
+    for (const varName of basicRequiredVars) {
       if (!process.env[varName]) {
         console.error(`❌ Missing required environment variable: ${varName}`);
         return false;
       }
     }
+
+    // Check Firebase project ID with JSON fallback support
+    const { getFirebaseProjectId } = require('../../utils/config.ts');
+    const projectId = getFirebaseProjectId();
+    
+    if (!projectId) {
+      console.error(`❌ Missing required Firebase project ID`);
+      console.error(`   Checked: NEXT_PUBLIC_FIREBASE_PROJECT_ID, FIREBASE_CONFIG, FIREBASE_WEBAPP_CONFIG`);
+      return false;
+    }
+
+    console.log(`✅ Firebase project ID found: ${projectId}`);
 
     // Check if we're in App Hosting environment
     const isAppHosting = process.env.FIREBASE_APP_HOSTING === 'true' ||

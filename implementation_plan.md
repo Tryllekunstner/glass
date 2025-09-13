@@ -1,79 +1,104 @@
 # Implementation Plan
 
-[Overview]
-Fix Firebase App Hosting 503 Service Unavailable error by resolving environment configuration, Firebase Admin SDK initialization, and server-side authentication middleware issues.
+Fix Firebase App Hosting environment variable mapping to resolve deployment failures by extracting configuration from Firebase's native JSON format.
 
-This implementation addresses the root causes of the App Hosting deployment failure: incorrect environment variable configuration pointing to old hosting URLs, Firebase Admin SDK initialization problems in the App Hosting environment, and complex authentication middleware dependencies that may be causing server startup failures. The solution maintains the existing server-side authentication system while ensuring reliable deployment and startup in Firebase App Hosting.
+## Overview
 
-[Types]
-No new type definitions required for this implementation.
+The deployment is failing because Firebase App Hosting provides environment variables in `FIREBASE_CONFIG` and `FIREBASE_WEBAPP_CONFIG` JSON format, but the application expects individual `NEXT_PUBLIC_*` variables. The solution is to update the configuration utilities to extract values from Firebase's JSON format while maintaining backward compatibility with individual variables for local development.
 
-The existing TypeScript interfaces and types in the authentication system are sufficient. The changes focus on configuration and initialization logic rather than type system modifications.
+## Types
 
-[Files]
-Configuration and server files will be modified to fix deployment issues.
+Update environment configuration types to support both Firebase JSON format and individual variables.
 
-Existing files to be modified:
-- `pickleglass_web/.env.production` - Update API URLs to point to App Hosting instead of old Firebase Hosting
-- `pickleglass_web/server/utils/firebase-admin.js` - Add better error handling and App Hosting environment detection
-- `pickleglass_web/server.js` - Add graceful fallback for authentication middleware failures
-- `pickleglass_web/apphosting.yaml` - Ensure proper environment variable configuration
-- `firebase.json` - Remove or disable old Firebase Hosting configuration
+```typescript
+interface FirebaseConfig {
+  projectId: string;
+  storageBucket: string;
+  databaseURL?: string;
+}
 
-New files to be created:
-- `pickleglass_web/server/utils/startup-health.js` - Health check utilities for server startup validation
-- `pickleglass_web/.env.apphosting` - App Hosting specific environment variables
+interface FirebaseWebappConfig {
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  storageBucket: string;
+  messagingSenderId: string;
+  appId: string;
+  measurementId?: string;
+}
 
-Files to be deleted:
-- None (keeping existing structure but disabling unused hosting config)
+interface EnvironmentConfig {
+  NODE_ENV: string;
+  NEXT_PUBLIC_FIREBASE_API_KEY: string;
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: string;
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: string;
+  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: string;
+  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: string;
+  NEXT_PUBLIC_FIREBASE_APP_ID: string;
+  NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: string;
+  NEXT_PUBLIC_API_URL: string;
+  NEXT_PUBLIC_ENABLE_ANALYTICS: string;
+  NEXT_PUBLIC_ENABLE_DEBUG: string;
+}
+```
 
-[Functions]
-Server initialization and authentication functions will be enhanced with better error handling.
+## Files
 
-Modified functions:
-- `AuthenticationService.initialize()` in `pickleglass_web/server/utils/firebase-admin.js` - Add App Hosting environment detection and graceful fallback
-- `authenticateRequest()` in `pickleglass_web/server/middleware/auth.js` - Add try-catch wrapper to prevent server crashes
-- `startServer()` in `pickleglass_web/server.js` - Add startup health checks and authentication middleware fallback
+Modify existing configuration files to support Firebase App Hosting's native environment variable format.
 
-New functions:
-- `validateAppHostingEnvironment()` in `pickleglass_web/server/utils/startup-health.js` - Validate App Hosting environment setup
-- `createFallbackAuthMiddleware()` in `pickleglass_web/server/middleware/auth.js` - Fallback middleware when Firebase Admin fails
-- `healthCheckWithAuth()` in `pickleglass_web/server/utils/startup-health.js` - Combined health check for server and auth services
+**Modified files:**
+- `pickleglass_web/utils/config.ts` - Update to extract from Firebase JSON configs
+- `pickleglass_web/server/utils/firebase-admin.js` - Update to use extracted project ID
+- `pickleglass_web/server/utils/startup-health.js` - Update environment validation
+- `pickleglass_web/lib/firebase-admin.ts` - Update to use extracted project ID
 
-[Classes]
-Authentication service class will be enhanced with better error handling and environment detection.
+**Configuration files to update:**
+- `apphosting.yaml` - Remove redundant individual environment variables
+- `pickleglass_web/.env.apphosting` - Simplify to only necessary overrides
 
-Modified classes:
-- `AuthenticationService` in `pickleglass_web/server/utils/firebase-admin.js` - Add environment detection, graceful initialization failure handling, and App Hosting specific configuration
+## Functions
 
-New classes:
-- `StartupHealthChecker` in `pickleglass_web/server/utils/startup-health.js` - Comprehensive startup validation and health monitoring
+Update configuration extraction and validation functions to support Firebase's JSON format.
 
-[Dependencies]
-No new package dependencies required.
+**New functions:**
+- `extractFirebaseConfig()` - Extract values from FIREBASE_CONFIG JSON
+- `extractFirebaseWebappConfig()` - Extract values from FIREBASE_WEBAPP_CONFIG JSON
+- `getEnvironmentConfig()` - Unified config getter with fallback logic
 
-All fixes use existing dependencies. The implementation focuses on configuration and initialization improvements rather than adding new packages.
+**Modified functions:**
+- `validateEnvironmentConfig()` - Update validation for new extraction logic
+- `getFirebaseConfig()` - Update to use extracted values
+- `validateAppHostingEnvironment()` - Update to check for Firebase JSON configs
 
-[Testing]
-Server startup and authentication flow validation.
+## Classes
 
-Test modifications:
-- Update existing tests in `pickleglass_web/__tests__/auth-flow.test.ts` to handle graceful authentication failures
-- Modify `pickleglass_web/__tests__/firebase.test.ts` to test App Hosting environment detection
+No new classes required. Existing configuration classes will be updated to use the new extraction functions.
 
-New test requirements:
-- Add startup health check tests
-- Add App Hosting environment configuration validation tests
-- Add authentication fallback behavior tests
+**Modified classes:**
+- `AuthenticationService` - Update to use extracted project ID from new config system
 
-[Implementation Order]
-Sequential implementation to minimize deployment conflicts and ensure reliable rollback capability.
+## Dependencies
 
-1. Update environment configuration files (.env.production, apphosting.yaml)
-2. Create startup health check utilities
-3. Enhance Firebase Admin SDK initialization with error handling
-4. Add authentication middleware fallback mechanisms
-5. Update main server startup logic with health checks
-6. Disable old Firebase Hosting configuration
-7. Test deployment and validate fixes
-8. Update documentation and monitoring
+No new dependencies required. The solution uses existing JSON parsing capabilities and maintains current Firebase SDK versions.
+
+## Testing
+
+Update existing tests to cover both Firebase JSON format and individual variable fallback scenarios.
+
+**Test updates:**
+- `pickleglass_web/__tests__/firebase.test.ts` - Add tests for JSON config extraction
+- `pickleglass_web/__tests__/config.test.ts` - Add tests for environment config extraction
+
+**New test scenarios:**
+- Firebase App Hosting JSON format parsing
+- Fallback to individual variables for local development
+- Error handling for malformed JSON configs
+
+## Implementation Order
+
+1. Update `utils/config.ts` with Firebase JSON extraction logic
+2. Update Firebase Admin SDK initialization files
+3. Update startup health checks
+4. Update environment files and App Hosting configuration
+5. Update tests to cover new functionality
+6. Test deployment to verify fix
