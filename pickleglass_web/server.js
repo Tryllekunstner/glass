@@ -63,17 +63,21 @@ async function startServer() {
   try {
     console.log(`[${new Date().toISOString()}] Starting Next.js server with authentication...`);
     
-    // Run startup health checks with error handling
-    try {
-      const { runStartupValidation } = require('./server/utils/startup-health');
-      const healthResults = await runStartupValidation();
-      
-      if (!healthResults.healthy) {
-        console.warn('⚠️  Some startup checks failed, but continuing with server startup...');
+    // Skip startup health checks in production to speed up container startup
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        const { runStartupValidation } = require('./server/utils/startup-health');
+        const healthResults = await runStartupValidation();
+        
+        if (!healthResults.healthy) {
+          console.warn('⚠️  Some startup checks failed, but continuing with server startup...');
+        }
+      } catch (healthError) {
+        console.error('❌ Startup health checks failed:', healthError.message);
+        console.warn('⚠️  Continuing with server startup despite health check failures...');
       }
-    } catch (healthError) {
-      console.error('❌ Startup health checks failed:', healthError.message);
-      console.warn('⚠️  Continuing with server startup despite health check failures...');
+    } else {
+      console.log('🚀 Production mode: Skipping startup health checks for faster container startup');
     }
     
     // Prepare the Next.js app with timeout
